@@ -5,19 +5,23 @@ import Dashboard from './pages/Dashboard';
 import UploadBeat from './pages/UploadBeat';
 import ManageBeats from './pages/ManageBeats';
 import EditBeat from './pages/EditBeat';
-import STYPlayer from './pages/STYPlayer'; // ✅ Nouvelle page importée
+import STYPlayer from './pages/STYPlayer';
 
 function App() {
   return (
     <Router>
       <div className="min-h-screen bg-gray-100 text-gray-800 font-sans">
         <Routes>
+          {/* Page d'accueil par défaut */}
+          <Route path="/" element={<Dashboard />} />
+
+          {/* Autres routes */}
           <Route path="/auth" element={<Auth />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/upload-beat" element={<UploadBeat />} />
           <Route path="/edit-beat/:id" element={<EditBeat />} />
           <Route path="/manage-beats" element={<ManageBeats />} />
-          <Route path="/sty-player" element={<STYPlayer />} /> {/* ✅ Route ajoutée */}
+          <Route path="/sty-player" element={<STYPlayer />} />
 
           {/* Page 404 */}
           <Route
