@@ -1,4 +1,7 @@
 // STYPlayer.js
+// Auteur : Ton nom ou pseudo ici
+// Description : Affiche tous les beats de tous les utilisateurs avec nom d'auteur
+
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -60,7 +63,7 @@ export default function STYPlayer() {
     const token = localStorage.getItem('token');
     if (!token) return navigate('/auth');
     axios
-      .get('/api/beats/me', { headers: { Authorization: `Bearer ${token}` } })
+      .get('/api/beats/all', { headers: { Authorization: `Bearer ${token}` } }) // 🔁 affiche tous les beats
       .then((res) => {
         const sorted = res.data.beats.sort((a, b) => a.title.localeCompare(b.title));
         setBeats(sorted);
@@ -133,7 +136,7 @@ export default function STYPlayer() {
         audioRef.current.src = url;
         audioRef.current.load();
         audioRef.current.currentTime = 0;
-        audioRef.current.loop = true; // 🔁 lecture en boucle
+        audioRef.current.loop = true;
         await audioRef.current.play();
       }
 
@@ -234,6 +237,7 @@ export default function STYPlayer() {
         <p className="text-sm text-gray-400">
           {beat.signature} - {beat.tempo} BPM
         </p>
+        <p className="text-xs text-gray-400 italic">Par : {beat.user?.username || 'inconnu'}</p>
       </div>
     </div>
   );
