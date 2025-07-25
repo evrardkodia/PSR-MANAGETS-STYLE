@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
-// 👉 Important : définir la base URL pour Axios
-axios.defaults.baseURL = 'http://localhost:5000';
+// Définir dynamiquement la base URL pour axios selon l'environnement
+axios.defaults.baseURL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -20,7 +20,7 @@ export default function Auth() {
       const res = await axios.post(endpoint, {
         email,
         password,
-        ...(isLogin ? {} : { username })
+        ...(isLogin ? {} : { username }),
       });
 
       if (res.data.token) {
