@@ -42,7 +42,7 @@ export default function UploadBeat() {
 
     try {
       const token = localStorage.getItem('token');
-      await axios.post('/api/beats/upload', formData, {
+      await axios.post('https://psr-backend-sdwl.onrender.com/api/beats/upload', formData, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data',
