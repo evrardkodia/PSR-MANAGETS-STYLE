@@ -2,7 +2,7 @@ services:
   - type: static
     name: psr-managers-style
     env: static
-    buildCommand: 'npm run build'
+    buildCommand: npm run build
     staticPublishPath: build
     routes:
       - type: rewrite
