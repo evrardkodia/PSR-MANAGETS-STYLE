@@ -5,6 +5,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { BACKEND_URL } from '../config'; // <-- ajuste ce chemin si nécessaire
 
 export default function STYPlayer() {
   const [beats, setBeats] = useState([]);
@@ -63,7 +64,7 @@ export default function STYPlayer() {
     const token = localStorage.getItem('token');
     if (!token) return navigate('/auth');
     axios
-      .get('/api/beats/public') // 🔁 affiche tous les beats
+      .get(`${BACKEND_URL}/api/beats/public`) // 🔁 affiche tous les beats via backend distant
       .then((res) => {
         const sorted = res.data.beats.sort((a, b) => a.title.localeCompare(b.title));
         setBeats(sorted);
@@ -97,7 +98,7 @@ export default function STYPlayer() {
       audioRef.current.load();
       try {
         await axios.post(
-          '/api/player/cleanup',
+          `${BACKEND_URL}/api/player/cleanup`,
           { beatId: selectedBeat.id, section },
           { headers: { Authorization: `Bearer ${token}` } }
         );
@@ -113,7 +114,7 @@ export default function STYPlayer() {
     setIsLoading(true);
     try {
       const response = await axios.post(
-        '/api/player/play-section',
+        `${BACKEND_URL}/api/player/play-section`,
         {
           beatId: selectedBeat.id,
           section,
@@ -179,7 +180,7 @@ export default function STYPlayer() {
       if (isAlreadyPlaying && controls.autofill) {
         const token = localStorage.getItem('token');
         axios.post(
-          '/api/player/fill-then-main',
+          `${BACKEND_URL}/api/player/fill-then-main`,
           {
             beatId: selectedBeat.id,
             mainLetter: newMain,
