@@ -5,7 +5,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { BACKEND_URL } from '../config'; // <-- ajuste ce chemin si nécessaire
+import { BACKEND_URL } from './config';
+
 
 export default function STYPlayer() {
   const [beats, setBeats] = useState([]);
