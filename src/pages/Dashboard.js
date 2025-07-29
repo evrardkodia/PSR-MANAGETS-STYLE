@@ -1,7 +1,9 @@
-// src/pages/Dashboard.js
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+
+// Définir l'URL du backend Render
+axios.defaults.baseURL = 'https://psr-manager-beat.onrender.com';
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);

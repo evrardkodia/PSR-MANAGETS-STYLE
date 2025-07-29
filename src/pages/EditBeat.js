@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate, useParams } from 'react-router-dom';
 
+// 👉 Définit l'URL de ton backend Render ici
+axios.defaults.baseURL = 'https://psr-manager-beat.onrender.com';
+
 export default function EditBeat() {
   const [file, setFile] = useState(null);
   const [title, setTitle] = useState('');
@@ -27,8 +30,7 @@ export default function EditBeat() {
     setTempo(beatData.tempo);
     setDescription(beatData.description || '');
     setOriginalFileName(beatData.filename || 'Beat chargé');
-    
-    // Séparer la signature personnalisée si besoin
+
     const [top, bottom] = beatData.signature.split('/');
     if (['4', '6', '12', '3', '2'].includes(top) && ['4', '8'].includes(bottom)) {
       setTimeSignature(beatData.signature);
@@ -43,7 +45,7 @@ export default function EditBeat() {
     e.preventDefault();
 
     const formData = new FormData();
-    if (file) formData.append('beat', file); // facultatif
+    if (file) formData.append('beat', file);
     formData.append('title', title);
     formData.append('tempo', tempo);
     formData.append('description', description);

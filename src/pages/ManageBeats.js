@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
+// Définit l'URL par défaut pour toutes les requêtes axios
+axios.defaults.baseURL = 'https://psr-manager-beat.onrender.com';
+
 export default function ManageBeats() {
   const [beats, setBeats] = useState([]);
   const [selectedBeats, setSelectedBeats] = useState([]);
@@ -98,7 +101,7 @@ export default function ManageBeats() {
               <th className="px-4 py-2">Description</th>
               <th className="px-4 py-2">Modifier</th>
               <th className="px-4 py-2">Supprimer</th>
-              <th className="px-4 py-2"></th> {/* Play button column */}
+              <th className="px-4 py-2"></th>
             </tr>
           </thead>
           <tbody>

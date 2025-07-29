@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
+// Configurer axios pour pointer vers le backend
+axios.defaults.baseURL = 'https://psr-manager-beat.onrender.com';
+
 export default function UploadBeat() {
   const [file, setFile] = useState(null);
   const [step, setStep] = useState(1);
@@ -42,7 +45,7 @@ export default function UploadBeat() {
 
     try {
       const token = localStorage.getItem('token');
-      await axios.post('https://psr-backend-sdwl.onrender.com/api/beats/upload', formData, {
+      await axios.post('/api/beats/upload', formData, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data',

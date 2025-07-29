@@ -1,9 +1,19 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
-// Définir dynamiquement la base URL pour axios selon l'environnement
-axios.defaults.baseURL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+// Créer une instance axios avec baseURL dynamique et gestion du token
+const api = axios.create({
+  baseURL: process.env.REACT_APP_API_BASE_URL || 'https://psr-manager-beat.onrender.com',
+});
+
+api.interceptors.request.use(config => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -17,7 +27,7 @@ export default function Auth() {
     const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
 
     try {
-      const res = await axios.post(endpoint, {
+      const res = await api.post(endpoint, {
         email,
         password,
         ...(isLogin ? {} : { username }),
