@@ -7,7 +7,6 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { BACKEND_URL } from './config';
 
-
 export default function STYPlayer() {
   const [beats, setBeats] = useState([]);
   const [selectedBeat, setSelectedBeat] = useState(null);
@@ -67,6 +66,7 @@ export default function STYPlayer() {
     axios
       .get(`${BACKEND_URL}/api/beats/public`) // 🔁 affiche tous les beats via backend distant
       .then((res) => {
+        // Trie alphabétique par titre, mais le filename est toujours là dans chaque beat
         const sorted = res.data.beats.sort((a, b) => a.title.localeCompare(b.title));
         setBeats(sorted);
       })
@@ -84,6 +84,11 @@ export default function STYPlayer() {
   const togglePlay = async () => {
     if (!selectedBeat || isLoading) {
       alert('⚠️ Aucun beat sélectionné ou chargement en cours.');
+      return;
+    }
+
+    if (!selectedBeat.filename) {
+      alert('⚠️ Le beat sélectionné n’a pas de fichier .sty associé.');
       return;
     }
 
@@ -114,13 +119,15 @@ export default function STYPlayer() {
 
     setIsLoading(true);
     try {
+      // Envoie l'id du beat, et le backend doit retrouver le bon fichier .sty grâce au champ filename lié en BDD
       const response = await axios.post(
         `${BACKEND_URL}/api/player/play-section`,
         {
-          beatId: selectedBeat.id,
+          beatId: selectedBeat.id,       // ID unique du beat
           section,
           acmpEnabled: controls.acmp,
           disabledChannels: controls.disabledChannels,
+          // Pas besoin d'envoyer filename ici, backend s'en sert en DB pour retrouver le fichier .sty
         },
         {
           headers: {
@@ -152,7 +159,11 @@ export default function STYPlayer() {
   };
 
   const handleSelectBeat = (beat) => {
-    setSelectedBeat(beat);
+    if (!beat.filename) {
+      alert("⚠️ Ce beat n'a pas de fichier .sty associé.");
+      return;
+    }
+    setSelectedBeat(beat); // stocke le beat complet, incluant filename
     setControls({
       acmp: false,
       autofill: false,
@@ -240,6 +251,8 @@ export default function STYPlayer() {
           {beat.signature} - {beat.tempo} BPM
         </p>
         <p className="text-xs text-gray-400 italic">Par : {beat.user?.username || 'inconnu'}</p>
+        {/* Optionnel: afficher filename pour debug */}
+        {/* <p className="text-xs text-gray-400 italic">Fichier : {beat.filename}</p> */}
       </div>
     </div>
   );
@@ -295,6 +308,8 @@ export default function STYPlayer() {
           <p className="text-gray-400">Tempo : {selectedBeat.tempo} BPM</p>
           <p className="text-gray-400">Signature : {selectedBeat.signature}</p>
           <p className="text-gray-400">Description : {selectedBeat.description || 'Aucune'}</p>
+          {/* Optionnel: afficher filename pour debug */}
+          {/* <p className="text-gray-400">Fichier : {selectedBeat.filename}</p> */}
 
           <div className="flex flex-nowrap overflow-x-auto justify-center gap-2 mt-6 bg-[#1c1c1c] p-3 rounded-lg">
             {renderButton('acmp', 'ACMP', controls.acmp, () => handleControlClick('acmp'))}
@@ -334,6 +349,14 @@ export default function STYPlayer() {
         {`
           .glow {
             box-shadow: 0 0 8px 3px currentColor;
+          }
+          /* Si tu veux une animation blink orange/blue, tu peux définir ici */
+          @keyframes orangeBlueBlink {
+            0%, 100% { background-color: orange; }
+            50% { background-color: blue; }
+          }
+          .animate-orange-blue-blink {
+            animation: orangeBlueBlink 1s infinite;
           }
         `}
       </style>
