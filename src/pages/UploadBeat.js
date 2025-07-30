@@ -30,12 +30,9 @@ export default function UploadBeat() {
       return;
     }
 
-    const extension = file.name.split('.').pop();
-    const newFileName = `${title.trim().replace(/[^\w\s-]/g, '_')}.${extension}`;
-    const renamedFile = new File([file], newFileName, { type: file.type });
-
+    // *** ICI ON ENVOIE LE FICHIER TEL QUEL SANS RENOMMER ***
     const formData = new FormData();
-    formData.append('beat', renamedFile);
+    formData.append('beat', file); // <-- Pas de renommage
     formData.append('title', title);
     formData.append('tempo', tempo);
     formData.append('description', description);
