@@ -1,6 +1,9 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
+// Components
+import Navbar from './components/Navbar';
+
 // Pages
 import Auth from './pages/Auth';
 import Dashboard from './pages/Dashboard';
@@ -8,11 +11,13 @@ import UploadBeat from './pages/UploadBeat';
 import ManageBeats from './pages/ManageBeats';
 import EditBeat from './pages/EditBeat';
 import STYPlayer from './pages/STYPlayer';
+import STYPlayerSM from './pages/STYPlayerSM';
 
 function App() {
   return (
     <Router>
-      <div className="min-h-screen bg-gray-100 text-gray-800 font-sans">
+      <Navbar />
+      <div className="min-h-screen bg-gray-100 text-gray-800 font-sans pt-2">
         <Routes>
           {/* Page d'accueil par défaut */}
           <Route path="/" element={<Dashboard />} />
@@ -26,8 +31,9 @@ function App() {
           <Route path="/manage-beats" element={<ManageBeats />} />
           <Route path="/edit-beat/:id" element={<EditBeat />} />
 
-          {/* Lecteur STY avec redirection automatique mobile/desktop */}
+          {/* Lecteurs STY */}
           <Route path="/sty-player" element={<STYPlayer />} />
+          <Route path="/sty-player-sm" element={<STYPlayerSM />} />
 
           {/* Page 404 - Not Found */}
           <Route
