@@ -1,5 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+
+// Pages
 import Auth from './pages/Auth';
 import Dashboard from './pages/Dashboard';
 import UploadBeat from './pages/UploadBeat';
@@ -15,15 +17,19 @@ function App() {
           {/* Page d'accueil par défaut */}
           <Route path="/" element={<Dashboard />} />
 
-          {/* Autres routes */}
+          {/* Authentification */}
           <Route path="/auth" element={<Auth />} />
+
+          {/* Dashboard et gestion */}
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/upload-beat" element={<UploadBeat />} />
-          <Route path="/edit-beat/:id" element={<EditBeat />} />
           <Route path="/manage-beats" element={<ManageBeats />} />
+          <Route path="/edit-beat/:id" element={<EditBeat />} />
+
+          {/* Lecteur STY avec redirection automatique mobile/desktop */}
           <Route path="/sty-player" element={<STYPlayer />} />
 
-          {/* Page 404 */}
+          {/* Page 404 - Not Found */}
           <Route
             path="*"
             element={
