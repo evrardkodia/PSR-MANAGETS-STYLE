@@ -1,5 +1,3 @@
-// STYPlayerSM.js
-// Version mobile simplifiée et stylée
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -92,97 +90,183 @@ export default function STYPlayerSM() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white p-4 flex flex-col">
-      <h1 className="text-2xl font-extrabold mb-6 text-center select-none drop-shadow-lg">
-        🎧 PSR MANAGER STYLE - Mobile
-      </h1>
+    <>
+      <style>{`
+        /* Animation voyant clignotant (idem STYPlayerFull) */
+        @keyframes voyant-clignote {
+          0% { background-color: orange; }
+          10% { background-color: transparent; }
+          20% { background-color: orange; }
+          30% { background-color: transparent; }
+          40% { background-color: orange; }
+          50% { background-color: transparent; }
+          60% { background-color: blue; }
+          70% { background-color: transparent; }
+          100% { background-color: transparent; }
+        }
+        .play-button {
+          background-color: white !important;
+          color: black !important;
+          position: relative;
+        }
+        .play-button .voyant {
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
+          position: absolute;
+          top: 50%;
+          left: 16px;
+          transform: translateY(-50%);
+          animation: voyant-clignote 1.5s infinite;
+        }
 
-      <div className="flex-grow overflow-auto space-y-3 mb-6">
-        {beats.length === 0 ? (
-          <p className="text-center text-gray-400 italic">Aucun beat disponible</p>
-        ) : (
-          beats.map((beat) => (
-            <div
-              key={beat.id}
-              onClick={() => handleSelectBeat(beat)}
-              className={`flex items-center gap-4 p-3 rounded-lg cursor-pointer transition-shadow
-                ${
+        /* Conteneur gris autour des icônes */
+        .icon-container {
+          background-color: #4b5563; /* tailwind gray-600 */
+          padding: 4px;
+          border-radius: 8px;
+          width: 48px;
+          height: 48px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          margin-right: 12px;
+        }
+        .icon-container img {
+          width: 36px;
+          height: 36px;
+          object-fit: contain;
+          border-radius: 4px;
+          user-select: none;
+          pointer-events: none;
+        }
+
+        /* Réduction hauteur conteneur beat à 1.5cm */
+        .beat-container {
+          height: 1.5cm;
+          max-height: 1.5cm;
+          min-height: 1.5cm;
+          padding: 0.3rem 1rem;
+          overflow: hidden;
+          display: flex;
+          align-items: center;
+          cursor: pointer;
+          transition: box-shadow 0.2s ease;
+          border-radius: 0.5rem;
+        }
+        .beat-container:hover {
+          box-shadow: 0 0 10px rgba(255,255,255,0.2);
+        }
+
+        /* Ajuster texte pour éviter dépassement hauteur */
+        .beat-text {
+          overflow: hidden;
+          white-space: nowrap;
+          text-overflow: ellipsis;
+          line-height: 1.2;
+        }
+        .beat-subtext {
+          font-size: 0.7rem;
+          color: #d1d5db;
+          overflow: hidden;
+          white-space: nowrap;
+          text-overflow: ellipsis;
+        }
+      `}</style>
+
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white p-4 flex flex-col">
+        <h1 className="text-2xl font-extrabold mb-6 text-center select-none drop-shadow-lg">
+          🎧 PSR MANAGER STYLE - Mobile
+        </h1>
+
+        <div className="flex-grow overflow-auto space-y-3 mb-6">
+          {beats.length === 0 ? (
+            <p className="text-center text-gray-400 italic">Aucun beat disponible</p>
+          ) : (
+            beats.map((beat) => (
+              <div
+                key={beat.id}
+                onClick={() => handleSelectBeat(beat)}
+                className={`beat-container transition-shadow ${
                   selectedBeat?.id === beat.id
                     ? 'bg-blue-700 shadow-lg'
                     : 'bg-gray-800 hover:bg-gray-700'
                 }`}
-              title={`${beat.title} — ${beat.user?.username || 'Inconnu'}`}
-            >
-              <img
-                src={getIconPath(beat.title)}
-                alt="Icone"
-                className="w-12 h-12 rounded-md object-contain"
-                draggable={false}
-              />
-              <div className="flex flex-col flex-grow truncate">
-                <span className="font-semibold text-lg truncate">{beat.title}</span>
-                <span className="text-xs text-gray-300 truncate">
-                  {beat.signature} — {beat.tempo} BPM
-                </span>
-                <span className="text-xs italic text-gray-400 truncate">
-                  Par : {beat.user?.username || 'Inconnu'}
-                </span>
+                title={`${beat.title} — ${beat.user?.username || 'Inconnu'}`}
+              >
+                <div className="icon-container">
+                  <img
+                    src={getIconPath(beat.title)}
+                    alt="Icone"
+                    draggable={false}
+                  />
+                </div>
+                <div className="flex flex-col flex-grow truncate justify-center">
+                  <span className="font-semibold text-lg beat-text truncate">{beat.title}</span>
+                  <span className="beat-subtext truncate">
+                    {beat.signature} — {beat.tempo} BPM
+                  </span>
+                  <span className="beat-subtext italic truncate">
+                    Par : {beat.user?.username || 'Inconnu'}
+                  </span>
+                </div>
               </div>
-            </div>
-          ))
+            ))
+          )}
+        </div>
+
+        {selectedBeat && (
+          <div className="bg-gray-800 rounded-xl p-5 shadow-lg text-center select-none">
+            <h2 className="text-xl font-bold mb-3">{selectedBeat.title}</h2>
+            <p className="text-gray-400 mb-4">{selectedBeat.description || 'Pas de description'}</p>
+
+            <button
+              onClick={togglePlay}
+              disabled={isLoading}
+              className="play-button inline-flex items-center justify-center px-10 py-3 rounded-full font-extrabold text-lg transition-colors duration-300 focus:outline-none focus:ring-4 focus:ring-green-400/50"
+            >
+              {isLoading ? (
+                <>
+                  <svg
+                    className="animate-spin -ml-1 mr-3 h-6 w-6 text-black"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8v8z"
+                    />
+                  </svg>
+                  Chargement...
+                </>
+              ) : isPlaying ? (
+                <>
+                  ⏹️ Stop
+                  <span className="voyant" />
+                </>
+              ) : (
+                <>
+                  ▶️ Play
+                  <span className="voyant" />
+                </>
+              )}
+            </button>
+
+            <audio ref={audioRef} hidden />
+          </div>
         )}
       </div>
-
-      {selectedBeat && (
-        <div className="bg-gray-800 rounded-xl p-5 shadow-lg text-center select-none">
-          <h2 className="text-xl font-bold mb-3">{selectedBeat.title}</h2>
-          <p className="text-gray-400 mb-4">{selectedBeat.description || 'Pas de description'}</p>
-
-          <button
-            onClick={togglePlay}
-            disabled={isLoading}
-            className={`inline-flex items-center justify-center px-10 py-3 rounded-full font-extrabold text-lg
-              transition-colors duration-300
-              ${
-                isPlaying
-                  ? 'bg-red-600 hover:bg-red-700 text-white'
-                  : 'bg-green-600 hover:bg-green-700 text-white'
-              }
-              focus:outline-none focus:ring-4 focus:ring-green-400/50`}
-          >
-            {isLoading ? (
-              <>
-                <svg
-                  className="animate-spin -ml-1 mr-3 h-6 w-6 text-white"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8v8z"
-                  />
-                </svg>
-                Chargement...
-              </>
-            ) : isPlaying ? (
-              '⏹️ Stop'
-            ) : (
-              '▶️ Play'
-            )}
-          </button>
-          <audio ref={audioRef} hidden />
-        </div>
-      )}
-    </div>
+    </>
   );
 }
