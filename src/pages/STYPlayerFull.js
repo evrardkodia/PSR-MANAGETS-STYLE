@@ -4,101 +4,101 @@ import { useNavigate } from 'react-router-dom';
 import { BACKEND_URL } from './config';
 
 export default function STYPlayerFull() {
-  const [beats, setBeats] = useState([]);
-  const [selectedBeat, setSelectedBeat] = useState(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const audioRef = useRef(null);
-  const navigate = useNavigate();
-  const ITEMS_PER_PAGE = 20;
-  const [page, setPage] = useState(0);
+    const [beats, setBeats] = useState([]);
+    const [selectedBeat, setSelectedBeat] = useState(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const audioRef = useRef(null);
+    const navigate = useNavigate();
+    const ITEMS_PER_PAGE = 20;
+    const [page, setPage] = useState(0);
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) return navigate('/auth');
-    axios
-      .get(`${BACKEND_URL}/api/beats/public`)
-      .then((res) => {
-        const sorted = res.data.beats.sort((a, b) => a.title.localeCompare(b.title));
-        setBeats(sorted);
-      })
-      .catch(() => navigate('/auth'));
-  }, [navigate]);
+    useEffect(() => {
+        const token = localStorage.getItem('token');
+        if (!token) return navigate('/auth');
+        axios
+            .get(`${BACKEND_URL}/api/beats/public`)
+            .then((res) => {
+                const sorted = res.data.beats.sort((a, b) => a.title.localeCompare(b.title));
+                setBeats(sorted);
+            })
+            .catch(() => navigate('/auth'));
+    }, [navigate]);
 
-  const getIconPath = (title) => {
-    const iconCount = 10;
-    let sum = 0;
-    for (let i = 0; i < title.length; i++) sum += title.charCodeAt(i);
-    const index = (sum % iconCount) + 1;
-    return `/icons/${index}.png`;
-  };
+    const getIconPath = (title) => {
+        const iconCount = 10;
+        let sum = 0;
+        for (let i = 0; i < title.length; i++) sum += title.charCodeAt(i);
+        const index = (sum % iconCount) + 1;
+        return `/icons/${index}.png`;
+    };
 
-  const handleSelectBeat = (beat) => {
-    if (isPlaying) {
-      stopPlayback();
-    }
-    setSelectedBeat(beat);
-  };
-
-  const stopPlayback = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      audioRef.current.removeAttribute('src');
-      audioRef.current.load();
-    }
-    setIsPlaying(false);
-    setIsLoading(false);
-  };
-
-  const togglePlay = async () => {
-    if (!selectedBeat) {
-      alert('⚠️ Veuillez sélectionner un beat avant de jouer.');
-      return;
-    }
-    if (isPlaying) {
-      stopPlayback();
-      return;
-    }
-
-    setIsLoading(true);
-    const token = localStorage.getItem('token');
-
-    try {
-      const response = await axios.post(
-        `${BACKEND_URL}/api/player/play-full`,
-        { beatId: selectedBeat.id },
-        {
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          responseType: 'blob',
+    const handleSelectBeat = (beat) => {
+        if (isPlaying) {
+            stopPlayback();
         }
-      );
+        setSelectedBeat(beat);
+    };
 
-      const blob = new Blob([response.data], { type: 'audio/wav' });
-      const url = URL.createObjectURL(blob);
+    const stopPlayback = () => {
+        if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0;
+            audioRef.current.removeAttribute('src');
+            audioRef.current.load();
+        }
+        setIsPlaying(false);
+        setIsLoading(false);
+    };
 
-      if (audioRef.current) {
-        audioRef.current.src = url;
-        audioRef.current.loop = true;
-        await audioRef.current.play();
-      }
-      setIsPlaying(true);
-    } catch (error) {
-      console.error('❌ Erreur lecture:', error);
-      alert('Erreur lors de la lecture du beat. Veuillez réessayer.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    const togglePlay = async () => {
+        if (!selectedBeat) {
+            alert('⚠️ Veuillez sélectionner un beat avant de jouer.');
+            return;
+        }
+        if (isPlaying) {
+            stopPlayback();
+            return;
+        }
 
-  // Pagination
-  const currentPageBeats = beats.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
-  const leftColumn = currentPageBeats.slice(0, 10);
-  const rightColumn = currentPageBeats.slice(10, 20);
+        setIsLoading(true);
+        const token = localStorage.getItem('token');
 
-  return (
-    <>
-      <style>{`
+        try {
+            const response = await axios.post(
+                `${BACKEND_URL}/api/player/play-full`,
+                { beatId: selectedBeat.id },
+                {
+                    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    responseType: 'blob',
+                }
+            );
+
+            const blob = new Blob([response.data], { type: 'audio/wav' });
+            const url = URL.createObjectURL(blob);
+
+            if (audioRef.current) {
+                audioRef.current.src = url;
+                audioRef.current.loop = true;
+                await audioRef.current.play();
+            }
+            setIsPlaying(true);
+        } catch (error) {
+            console.error('❌ Erreur lecture:', error);
+            alert('Erreur lors de la lecture du beat. Veuillez réessayer.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Pagination
+    const currentPageBeats = beats.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
+    const leftColumn = currentPageBeats.slice(0, 10);
+    const rightColumn = currentPageBeats.slice(10, 20);
+
+    return (
+        <>
+            <style>{`
         /* Animation voyant clignotant avec pauses longues */
         @keyframes voyant-clignote {
           0% { background-color: orange; }
@@ -148,9 +148,9 @@ export default function STYPlayerFull() {
           box-shadow: 0 0 10px rgba(255,255,255,0.2);
         }
 
-        /* Conteneur gris derrière l'icône */
+        /* Conteneur blanc opaque derrière l'icône */
         .icon-container {
-          background-color: #374151; /* gris plus foncé que le conteneur */
+          background-color: white; /* blanc opaque */
           padding: 4px;
           border-radius: 8px;
           width: 48px;
@@ -160,7 +160,10 @@ export default function STYPlayerFull() {
           justify-content: center;
           margin-right: 12px;
           flex-shrink: 0;
+          /* Optionnel : ajoute une ombre légère pour détacher l'icône */
+          box-shadow: 0 0 6px rgba(0, 0, 0, 0.1);
         }
+
         .icon-container img {
           width: 36px;
           height: 36px;
@@ -185,127 +188,124 @@ export default function STYPlayerFull() {
         }
       `}</style>
 
-      <div className="min-h-screen bg-gradient-to-tr from-gray-900 via-gray-800 to-gray-900 text-white p-6 flex flex-col items-center">
-        <h1 className="text-4xl font-extrabold mb-6 select-none drop-shadow-lg">
-          🎹 PSR MANAGER STYLE - Lecteur Full MIDI
-        </h1>
+            <div className="min-h-screen bg-gradient-to-tr from-gray-900 via-gray-800 to-gray-900 text-white p-6 flex flex-col items-center">
+                <h1 className="text-4xl font-extrabold mb-6 select-none drop-shadow-lg">
+                    🎹 PSR MANAGER STYLE - Lecteur Full MIDI
+                </h1>
 
-        <div className="w-full max-w-6xl grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          {[leftColumn, rightColumn].map((column, colIdx) => (
-            <div key={colIdx} className="space-y-3">
-              {column.length === 0 ? (
-                <p className="text-gray-400 text-center italic">Aucun beat disponible</p>
-              ) : (
-                column.map((beat) => (
-                  <div
-                    key={beat.id}
-                    onClick={() => handleSelectBeat(beat)}
-                    className={`beat-container rounded-lg transition-shadow
-                      ${
-                        selectedBeat?.id === beat.id
-                          ? 'bg-blue-700 shadow-lg'
-                          : ''
-                      }`}
-                    title={`${beat.title} - ${beat.user?.username || 'Inconnu'}`}
-                  >
-                    <div className="icon-container">
-                      <img
-                        src={getIconPath(beat.title)}
-                        alt="Icône"
-                        draggable={false}
-                      />
-                    </div>
-                    <div className="flex flex-col flex-grow justify-center">
-                      <span className="font-semibold text-lg beat-text">{beat.title}</span>
-                      <span className="beat-subtext">
-                        {beat.signature} - {beat.tempo} BPM
-                      </span>
-                      <span className="beat-subtext italic">
-                        Par : {beat.user?.username || 'Inconnu'}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          ))}
-        </div>
+                <div className="w-full max-w-6xl grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    {[leftColumn, rightColumn].map((column, colIdx) => (
+                        <div key={colIdx} className="space-y-3">
+                            {column.length === 0 ? (
+                                <p className="text-gray-400 text-center italic">Aucun beat disponible</p>
+                            ) : (
+                                column.map((beat) => (
+                                    <div
+                                        key={beat.id}
+                                        onClick={() => handleSelectBeat(beat)}
+                                        className={`beat-container rounded-lg transition-shadow
+                      ${selectedBeat?.id === beat.id
+                                                ? 'bg-blue-700 shadow-lg'
+                                                : ''
+                                            }`}
+                                        title={`${beat.title} - ${beat.user?.username || 'Inconnu'}`}
+                                    >
+                                        <div className="icon-container">
+                                            <img
+                                                src={getIconPath(beat.title)}
+                                                alt="Icône"
+                                                draggable={false}
+                                            />
+                                        </div>
+                                        <div className="flex flex-col flex-grow justify-center">
+                                            <span className="font-semibold text-lg beat-text">{beat.title}</span>
+                                            <span className="beat-subtext">
+                                                {beat.signature} - {beat.tempo} BPM
+                                            </span>
+                                            <span className="beat-subtext italic">
+                                                Par : {beat.user?.username || 'Inconnu'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    ))}
+                </div>
 
-        {selectedBeat && (
-          <div className="w-full max-w-3xl bg-gray-800 rounded-xl p-6 shadow-lg text-center select-none">
-            <h2 className="text-2xl font-bold mb-2">{selectedBeat.title}</h2>
-            <p className="text-gray-400 mb-4">{selectedBeat.description || 'Pas de description'}</p>
+                {selectedBeat && (
+                    <div className="w-full max-w-3xl bg-gray-800 rounded-xl p-6 shadow-lg text-center select-none">
+                        <h2 className="text-2xl font-bold mb-2">{selectedBeat.title}</h2>
+                        <p className="text-gray-400 mb-4">{selectedBeat.description || 'Pas de description'}</p>
 
-            <button
-              onClick={togglePlay}
-              disabled={isLoading}
-              className={`play-button inline-flex items-center justify-center px-8 py-3 rounded-full font-extrabold text-lg
+                        <button
+                            onClick={togglePlay}
+                            disabled={isLoading}
+                            className={`play-button inline-flex items-center justify-center px-8 py-3 rounded-full font-extrabold text-lg
                 transition-colors duration-300
                 focus:outline-none focus:ring-4 focus:ring-green-400/50`}
-            >
-              {isLoading ? (
-                <>
-                  <svg
-                    className="animate-spin -ml-1 mr-3 h-6 w-6 text-black"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8v8z"
-                    />
-                  </svg>
-                  Chargement...
-                </>
-              ) : isPlaying ? (
-                <>
-                  ⏹️ Stop
-                  <span className="voyant" />
-                </>
-              ) : (
-                <>
-                  ▶️ Play
-                  {/* Pas de voyant quand on ne joue pas */}
-                </>
-              )}
-            </button>
+                        >
+                            {isLoading ? (
+                                <>
+                                    <svg
+                                        className="animate-spin -ml-1 mr-3 h-6 w-6 text-black"
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <circle
+                                            className="opacity-25"
+                                            cx="12"
+                                            cy="12"
+                                            r="10"
+                                            stroke="currentColor"
+                                            strokeWidth="4"
+                                        />
+                                        <path
+                                            className="opacity-75"
+                                            fill="currentColor"
+                                            d="M4 12a8 8 0 018-8v8z"
+                                        />
+                                    </svg>
+                                    Chargement...
+                                </>
+                            ) : isPlaying ? (
+                                <>
+                                    ⏹️ Stop
+                                    <span className="voyant" />
+                                </>
+                            ) : (
+                                <>
+                                    ▶️ Play
+                                    {/* Pas de voyant quand on ne joue pas */}
+                                </>
+                            )}
+                        </button>
 
-            <audio ref={audioRef} hidden />
-          </div>
-        )}
+                        <audio ref={audioRef} hidden />
+                    </div>
+                )}
 
-        {/* Pagination controls */}
-        <div className="flex gap-3 mt-8 select-none">
-          <button
-            disabled={page === 0}
-            onClick={() => setPage((p) => Math.max(p - 1, 0))}
-            className={`px-4 py-2 rounded-md bg-gray-700 hover:bg-gray-600 ${
-              page === 0 ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
-          >
-            Précédent
-          </button>
-          <button
-            disabled={(page + 1) * ITEMS_PER_PAGE >= beats.length}
-            onClick={() => setPage((p) => p + 1)}
-            className={`px-4 py-2 rounded-md bg-gray-700 hover:bg-gray-600 ${
-              (page + 1) * ITEMS_PER_PAGE >= beats.length ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
-          >
-            Suivant
-          </button>
-        </div>
-      </div>
-    </>
-  );
+                {/* Pagination controls */}
+                <div className="flex gap-3 mt-8 select-none">
+                    <button
+                        disabled={page === 0}
+                        onClick={() => setPage((p) => Math.max(p - 1, 0))}
+                        className={`px-4 py-2 rounded-md bg-gray-700 hover:bg-gray-600 ${page === 0 ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
+                    >
+                        Précédent
+                    </button>
+                    <button
+                        disabled={(page + 1) * ITEMS_PER_PAGE >= beats.length}
+                        onClick={() => setPage((p) => p + 1)}
+                        className={`px-4 py-2 rounded-md bg-gray-700 hover:bg-gray-600 ${(page + 1) * ITEMS_PER_PAGE >= beats.length ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
+                    >
+                        Suivant
+                    </button>
+                </div>
+            </div>
+        </>
+    );
 }

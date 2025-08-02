@@ -80,28 +80,19 @@ export default function STYPlayerSM() {
     }
   };
 
-  const handleSelectBeat = (beat) => {
-    if (isPlaying) stopPlayback();
-    if (!beat.filename) {
-      alert("⚠️ Ce beat n'a pas de fichier .sty associé.");
-      return;
-    }
-    setSelectedBeat(beat);
-  };
-
   return (
     <>
       <style>{`
-        /* Animation voyant clignotant (idem STYPlayerFull) */
+        /* Animation voyant clignotant */
         @keyframes voyant-clignote {
           0% { background-color: orange; }
-          10% { background-color: transparent; }
-          20% { background-color: orange; }
-          30% { background-color: transparent; }
-          40% { background-color: orange; }
-          50% { background-color: transparent; }
-          60% { background-color: blue; }
-          70% { background-color: transparent; }
+          5% { background-color: transparent; }
+          15% { background-color: orange; }
+          20% { background-color: transparent; }
+          30% { background-color: orange; }
+          35% { background-color: transparent; }
+          40% { background-color: blue; }
+          45% { background-color: transparent; }
           100% { background-color: transparent; }
         }
         .play-button {
@@ -117,12 +108,18 @@ export default function STYPlayerSM() {
           top: 50%;
           left: 16px;
           transform: translateY(-50%);
-          animation: voyant-clignote 1.5s infinite;
+          /* Animation clignote seulement si lecture en cours */
+          animation: voyant-clignote 3s infinite;
+          animation-play-state: paused;
+        }
+        /* Activer animation quand isPlaying = true */
+        .play-button.playing .voyant {
+          animation-play-state: running;
         }
 
-        /* Conteneur gris autour des icônes */
+        /* Conteneur blanc opaque autour des icônes (modif ici) */
         .icon-container {
-          background-color: #4b5563; /* tailwind gray-600 */
+          background-color: white; /* blanc opaque */
           padding: 4px;
           border-radius: 8px;
           width: 48px;
@@ -132,6 +129,7 @@ export default function STYPlayerSM() {
           justify-content: center;
           flex-shrink: 0;
           margin-right: 12px;
+          box-shadow: 0 0 6px rgba(0, 0, 0, 0.1); /* légère ombre */
         }
         .icon-container img {
           width: 36px;
@@ -187,7 +185,7 @@ export default function STYPlayerSM() {
             beats.map((beat) => (
               <div
                 key={beat.id}
-                onClick={() => handleSelectBeat(beat)}
+                onClick={() => setSelectedBeat(beat)}
                 className={`beat-container transition-shadow ${
                   selectedBeat?.id === beat.id
                     ? 'bg-blue-700 shadow-lg'
@@ -224,7 +222,9 @@ export default function STYPlayerSM() {
             <button
               onClick={togglePlay}
               disabled={isLoading}
-              className="play-button inline-flex items-center justify-center px-10 py-3 rounded-full font-extrabold text-lg transition-colors duration-300 focus:outline-none focus:ring-4 focus:ring-green-400/50"
+              className={`play-button inline-flex items-center justify-center px-10 py-3 rounded-full font-extrabold text-lg transition-colors duration-300 focus:outline-none focus:ring-4 focus:ring-green-400/50 ${
+                isPlaying ? 'playing' : ''
+              }`}
             >
               {isLoading ? (
                 <>
@@ -258,7 +258,8 @@ export default function STYPlayerSM() {
               ) : (
                 <>
                   ▶️ Play
-                  <span className="voyant" />
+                  {/* Voyant visible mais sans animation */}
+                  <span className="voyant" style={{ animationPlayState: 'paused', backgroundColor: 'transparent' }} />
                 </>
               )}
             </button>
