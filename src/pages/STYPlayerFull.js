@@ -99,16 +99,16 @@ export default function STYPlayerFull() {
   return (
     <>
       <style>{`
-        /* 1) Animation du voyant clignotant */
+        /* Animation voyant clignotant avec pauses longues */
         @keyframes voyant-clignote {
           0% { background-color: orange; }
-          10% { background-color: transparent; }
-          20% { background-color: orange; }
-          30% { background-color: transparent; }
-          40% { background-color: orange; }
-          50% { background-color: transparent; }
-          60% { background-color: blue; }
-          70% { background-color: transparent; }
+          6.25% { background-color: transparent; }
+          25% { background-color: orange; }
+          31.25% { background-color: transparent; }
+          50% { background-color: orange; }
+          56.25% { background-color: transparent; }
+          75% { background-color: blue; }
+          81.25% { background-color: transparent; }
           100% { background-color: transparent; }
         }
 
@@ -117,6 +117,8 @@ export default function STYPlayerFull() {
           color: black !important;
           position: relative;
         }
+
+        /* Le voyant clignote uniquement quand isPlaying est true */
         .play-button .voyant {
           width: 12px;
           height: 12px;
@@ -125,12 +127,30 @@ export default function STYPlayerFull() {
           top: 50%;
           left: 14px;
           transform: translateY(-50%);
-          animation: voyant-clignote 1.5s infinite;
+          animation: voyant-clignote 4s infinite;
         }
 
-        /* 2) Conteneur gris derrière image */
+        /* Conteneur gris opaque pour chaque beat */
+        .beat-container {
+          height: 1.5cm;
+          max-height: 1.5cm;
+          min-height: 1.5cm;
+          padding: 0.3rem 1rem;
+          overflow: hidden;
+          display: flex;
+          align-items: center;
+          cursor: pointer;
+          transition: box-shadow 0.2s ease;
+          background-color: #4b5563; /* gris opaque (tailwind gray-600) */
+          border-radius: 0.5rem;
+        }
+        .beat-container:hover {
+          box-shadow: 0 0 10px rgba(255,255,255,0.2);
+        }
+
+        /* Conteneur gris derrière l'icône */
         .icon-container {
-          background-color: #4b5563; /* gris moyen, tailwind gray-600 */
+          background-color: #374151; /* gris plus foncé que le conteneur */
           padding: 4px;
           border-radius: 8px;
           width: 48px;
@@ -141,7 +161,6 @@ export default function STYPlayerFull() {
           margin-right: 12px;
           flex-shrink: 0;
         }
-
         .icon-container img {
           width: 36px;
           height: 36px;
@@ -151,33 +170,15 @@ export default function STYPlayerFull() {
           pointer-events: none;
         }
 
-        /* 3) Réduire hauteur conteneur beat */
-        .beat-container {
-          height: 1.5cm; /* environ 1.5cm hauteur */
-          max-height: 1.5cm;
-          min-height: 1.5cm;
-          padding: 0.3rem 1rem;
-          overflow: hidden;
-          display: flex;
-          align-items: center;
-          cursor: pointer;
-          transition: box-shadow 0.2s ease;
-        }
-        .beat-container:hover {
-          box-shadow: 0 0 10px rgba(255,255,255,0.2);
-        }
-
-        /* Ajuster texte pour éviter dépassement hauteur */
         .beat-text {
           overflow: hidden;
           white-space: nowrap;
           text-overflow: ellipsis;
           line-height: 1.2;
         }
-
         .beat-subtext {
           font-size: 0.7rem;
-          color: #d1d5db; /* tailwind gray-300 */
+          color: #d1d5db;
           overflow: hidden;
           white-space: nowrap;
           text-overflow: ellipsis;
@@ -203,7 +204,7 @@ export default function STYPlayerFull() {
                       ${
                         selectedBeat?.id === beat.id
                           ? 'bg-blue-700 shadow-lg'
-                          : 'bg-gray-800 hover:bg-gray-700'
+                          : ''
                       }`}
                     title={`${beat.title} - ${beat.user?.username || 'Inconnu'}`}
                   >
@@ -274,8 +275,7 @@ export default function STYPlayerFull() {
               ) : (
                 <>
                   ▶️ Play
-                  {/* Voyant clignotant toujours visible même à l'arrêt */}
-                  <span className="voyant" />
+                  {/* Pas de voyant quand on ne joue pas */}
                 </>
               )}
             </button>
