@@ -4,9 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { BACKEND_URL } from './config';
 
 const ledsStyle = {
-  width: '12px',
-  height: '12px',
-  borderRadius: '50%',
+  width: '0.5cm',
+  height: '0.2cm',
+  borderRadius: '0.25cm',
   backgroundColor: 'orange',
   margin: '0 auto 6px auto',
 };
@@ -19,7 +19,8 @@ const buttonStyle = {
   margin: '0 6px',
   borderRadius: '4px',
   cursor: 'pointer',
-  minWidth: '70px',
+  width: '1.25cm',
+  height: '1.5cm',
   userSelect: 'none',
   whiteSpace: 'nowrap',
 };
@@ -130,25 +131,27 @@ export default function STYPlayerFull() {
         <ul style={{ listStyle: 'none', padding: 0, margin: 0, flex: '1 1 0', maxWidth: 300 }}>
           {leftColumn.map((beat) => (
             <li key={beat.id} style={{ marginBottom: 8 }}>
-              <button
-                style={{
-                  width: '100%',
-                  textAlign: 'left',
-                  backgroundColor: selectedBeat?.id === beat.id ? '#555' : '#444',
-                  border: 'none',
-                  padding: '10px 15px',
-                  borderRadius: 6,
-                  color: 'white',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                }}
-                onClick={() => handleSelectBeat(beat)}
-              >
-                <img src={beat.icon} alt="icon" style={{ width: 30, height: 30, borderRadius: 6 }} />
-                {beat.title}
-              </button>
+              <div style={{ backgroundColor: 'white', borderRadius: 6, padding: 4 }}>
+                <button
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    backgroundColor: selectedBeat?.id === beat.id ? '#555' : '#444',
+                    border: 'none',
+                    padding: '10px 15px',
+                    borderRadius: 6,
+                    color: 'white',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                  }}
+                  onClick={() => handleSelectBeat(beat)}
+                >
+                  <img src={beat.icon} alt="icon" style={{ width: 30, height: 30, borderRadius: 6 }} />
+                  {beat.title}
+                </button>
+              </div>
             </li>
           ))}
         </ul>
@@ -157,25 +160,27 @@ export default function STYPlayerFull() {
         <ul style={{ listStyle: 'none', padding: 0, margin: 0, flex: '1 1 0', maxWidth: 300 }}>
           {rightColumn.map((beat) => (
             <li key={beat.id} style={{ marginBottom: 8 }}>
-              <button
-                style={{
-                  width: '100%',
-                  textAlign: 'left',
-                  backgroundColor: selectedBeat?.id === beat.id ? '#555' : '#444',
-                  border: 'none',
-                  padding: '10px 15px',
-                  borderRadius: 6,
-                  color: 'white',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                }}
-                onClick={() => handleSelectBeat(beat)}
-              >
-                <img src={beat.icon} alt="icon" style={{ width: 30, height: 30, borderRadius: 6 }} />
-                {beat.title}
-              </button>
+              <div style={{ backgroundColor: 'white', borderRadius: 6, padding: 4 }}>
+                <button
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    backgroundColor: selectedBeat?.id === beat.id ? '#555' : '#444',
+                    border: 'none',
+                    padding: '10px 15px',
+                    borderRadius: 6,
+                    color: 'white',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                  }}
+                  onClick={() => handleSelectBeat(beat)}
+                >
+                  <img src={beat.icon} alt="icon" style={{ width: 30, height: 30, borderRadius: 6 }} />
+                  {beat.title}
+                </button>
+              </div>
             </li>
           ))}
         </ul>
@@ -196,26 +201,7 @@ export default function STYPlayerFull() {
             overflowX: 'auto',
           }}
         >
-          <div style={{ textAlign: 'center', margin: '0 6px', flex: '0 0 auto' }}>
-            <div style={ledsStyle}></div>
-            <button style={buttonStyle}>ACMP</button>
-          </div>
-
-          {['INTRO A', 'INTRO B', 'INTRO C', 'INTRO D'].map((name) => (
-            <div key={name} style={{ textAlign: 'center', margin: '0 6px', flex: '0 0 auto' }}>
-              <div style={ledsStyle}></div>
-              <button style={buttonStyle}>{name}</button>
-            </div>
-          ))}
-
-          {['MAIN A', 'MAIN B', 'MAIN C', 'MAIN D'].map((name) => (
-            <div key={name} style={{ textAlign: 'center', margin: '0 6px', flex: '0 0 auto' }}>
-              <div style={ledsStyle}></div>
-              <button style={buttonStyle}>{name}</button>
-            </div>
-          ))}
-
-          {['ENDING A', 'ENDING B', 'ENDING C', 'ENDING D'].map((name) => (
+          {[ 'ACMP', 'INTRO A', 'INTRO B', 'INTRO C', 'INTRO D', 'MAIN A', 'MAIN B', 'MAIN C', 'MAIN D', 'ENDING A', 'ENDING B', 'ENDING C', 'ENDING D' ].map((name) => (
             <div key={name} style={{ textAlign: 'center', margin: '0 6px', flex: '0 0 auto' }}>
               <div style={ledsStyle}></div>
               <button style={buttonStyle}>{name}</button>
@@ -227,7 +213,7 @@ export default function STYPlayerFull() {
             <div style={ledsStyle}></div>
             <button
               onClick={togglePlay}
-              style={{ ...buttonStyle, minWidth: '100px', backgroundColor: isPlaying ? '#fa3' : '#f60' }}
+              style={{ ...buttonStyle, width: '100px', backgroundColor: isPlaying ? '#fa3' : '#f60' }}
               disabled={isLoading}
             >
               {isLoading ? 'Chargement...' : isPlaying ? 'STOP' : 'PLAY'}
@@ -242,7 +228,7 @@ export default function STYPlayerFull() {
                 stopPlayback();
                 setSelectedBeat(null);
               }}
-              style={{ ...buttonStyle, backgroundColor: '#900', minWidth: 120 }}
+              style={{ ...buttonStyle, backgroundColor: '#900', width: '120px' }}
             >
               FERMER
             </button>
