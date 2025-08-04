@@ -140,7 +140,6 @@ export default function STYPlayerFull() {
       <h2 style={{ marginBottom: 16 }}>Liste des Beats</h2>
 
       <div style={{ display: 'flex', gap: 24, justifyContent: 'center', marginBottom: 30 }}>
-        {/* Colonne gauche */}
         <ul style={{ listStyle: 'none', padding: 0, margin: 0, flex: '1 1 0', maxWidth: 300 }}>
           {leftColumn.map((beat) => (
             <li key={beat.id} style={beatStyle}>
@@ -168,7 +167,6 @@ export default function STYPlayerFull() {
           ))}
         </ul>
 
-        {/* Colonne droite */}
         <ul style={{ listStyle: 'none', padding: 0, margin: 0, flex: '1 1 0', maxWidth: 300 }}>
           {rightColumn.map((beat) => (
             <li key={beat.id} style={beatStyle}>
@@ -197,7 +195,6 @@ export default function STYPlayerFull() {
         </ul>
       </div>
 
-      {/* Lecteur */}
       {selectedBeat && (
         <div
           style={{
@@ -216,11 +213,10 @@ export default function STYPlayerFull() {
             <div key={name} style={{ textAlign: 'center', margin: '0 6px', flex: '0 0 auto' }}>
               <div style={{ fontSize: '8px', marginBottom: 2 }}>{name}</div>
               <div style={ledsStyle}></div>
-              <button style={buttonStyle}>{name}</button>
+              <button style={buttonStyle}></button>
             </div>
           ))}
 
-          {/* Bouton Play */}
           <div style={{ textAlign: 'center', margin: '0 6px', flex: '0 0 auto' }}>
             <div style={{ fontSize: '8px', marginBottom: 2 }}>PLAY</div>
             <div style={ledsStyle}></div>
@@ -233,7 +229,6 @@ export default function STYPlayerFull() {
             </button>
           </div>
 
-          {/* Bouton fermer */}
           <div style={{ textAlign: 'center', margin: '0 6px', flex: '0 0 auto' }}>
             <div style={{ fontSize: '8px', marginBottom: 2 }}>FERMER</div>
             <div style={{ width: '12px', height: '12px', marginBottom: '6px' }}></div>
@@ -252,7 +247,6 @@ export default function STYPlayerFull() {
         </div>
       )}
 
-      {/* Pagination */}
       <div style={{ marginTop: 30, textAlign: 'center' }}>
         <button
           onClick={() => setPage((p) => Math.max(0, p - 1))}
