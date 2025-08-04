@@ -114,6 +114,19 @@ export default function STYPlayerFull() {
   const leftColumn = pagedBeats.slice(0, 5);
   const rightColumn = pagedBeats.slice(5, 10);
 
+  const beatStyle = {
+    borderBottom: '1px solid gray',
+    padding: 0,
+    backgroundColor: 'transparent',
+  };
+
+  const imageWrapperStyle = {
+    backgroundColor: 'white',
+    borderRadius: 6,
+    padding: 2,
+    display: 'inline-block',
+  };
+
   return (
     <div
       style={{
@@ -130,28 +143,27 @@ export default function STYPlayerFull() {
         {/* Colonne gauche */}
         <ul style={{ listStyle: 'none', padding: 0, margin: 0, flex: '1 1 0', maxWidth: 300 }}>
           {leftColumn.map((beat) => (
-            <li key={beat.id} style={{ marginBottom: 8 }}>
-              <div style={{ backgroundColor: 'white', borderRadius: 6, padding: 4 }}>
-                <button
-                  style={{
-                    width: '100%',
-                    textAlign: 'left',
-                    backgroundColor: selectedBeat?.id === beat.id ? '#555' : '#444',
-                    border: 'none',
-                    padding: '10px 15px',
-                    borderRadius: 6,
-                    color: 'white',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                  }}
-                  onClick={() => handleSelectBeat(beat)}
-                >
+            <li key={beat.id} style={beatStyle}>
+              <button
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  backgroundColor: selectedBeat?.id === beat.id ? '#555' : '#444',
+                  border: 'none',
+                  padding: '10px 15px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                }}
+                onClick={() => handleSelectBeat(beat)}
+              >
+                <span style={imageWrapperStyle}>
                   <img src={beat.icon} alt="icon" style={{ width: 30, height: 30, borderRadius: 6 }} />
-                  {beat.title}
-                </button>
-              </div>
+                </span>
+                {beat.title}
+              </button>
             </li>
           ))}
         </ul>
@@ -159,28 +171,27 @@ export default function STYPlayerFull() {
         {/* Colonne droite */}
         <ul style={{ listStyle: 'none', padding: 0, margin: 0, flex: '1 1 0', maxWidth: 300 }}>
           {rightColumn.map((beat) => (
-            <li key={beat.id} style={{ marginBottom: 8 }}>
-              <div style={{ backgroundColor: 'white', borderRadius: 6, padding: 4 }}>
-                <button
-                  style={{
-                    width: '100%',
-                    textAlign: 'left',
-                    backgroundColor: selectedBeat?.id === beat.id ? '#555' : '#444',
-                    border: 'none',
-                    padding: '10px 15px',
-                    borderRadius: 6,
-                    color: 'white',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                  }}
-                  onClick={() => handleSelectBeat(beat)}
-                >
+            <li key={beat.id} style={beatStyle}>
+              <button
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  backgroundColor: selectedBeat?.id === beat.id ? '#555' : '#444',
+                  border: 'none',
+                  padding: '10px 15px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                }}
+                onClick={() => handleSelectBeat(beat)}
+              >
+                <span style={imageWrapperStyle}>
                   <img src={beat.icon} alt="icon" style={{ width: 30, height: 30, borderRadius: 6 }} />
-                  {beat.title}
-                </button>
-              </div>
+                </span>
+                {beat.title}
+              </button>
             </li>
           ))}
         </ul>
@@ -203,6 +214,7 @@ export default function STYPlayerFull() {
         >
           {[ 'ACMP', 'INTRO A', 'INTRO B', 'INTRO C', 'INTRO D', 'MAIN A', 'MAIN B', 'MAIN C', 'MAIN D', 'ENDING A', 'ENDING B', 'ENDING C', 'ENDING D' ].map((name) => (
             <div key={name} style={{ textAlign: 'center', margin: '0 6px', flex: '0 0 auto' }}>
+              <div style={{ fontSize: '8px', marginBottom: 2 }}>{name}</div>
               <div style={ledsStyle}></div>
               <button style={buttonStyle}>{name}</button>
             </div>
@@ -210,6 +222,7 @@ export default function STYPlayerFull() {
 
           {/* Bouton Play */}
           <div style={{ textAlign: 'center', margin: '0 6px', flex: '0 0 auto' }}>
+            <div style={{ fontSize: '8px', marginBottom: 2 }}>PLAY</div>
             <div style={ledsStyle}></div>
             <button
               onClick={togglePlay}
@@ -222,6 +235,7 @@ export default function STYPlayerFull() {
 
           {/* Bouton fermer */}
           <div style={{ textAlign: 'center', margin: '0 6px', flex: '0 0 auto' }}>
+            <div style={{ fontSize: '8px', marginBottom: 2 }}>FERMER</div>
             <div style={{ width: '12px', height: '12px', marginBottom: '6px' }}></div>
             <button
               onClick={() => {
