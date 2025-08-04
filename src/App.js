@@ -12,6 +12,7 @@ import ManageBeats from './pages/ManageBeats';
 import EditBeat from './pages/EditBeat';
 import STYPlayer from './pages/STYPlayer';
 import STYPlayerSM from './pages/STYPlayerSM';
+import LecteurSTY from './pages/lecteur'; // ✅ Ajouté ici
 
 function App() {
   return (
@@ -34,6 +35,7 @@ function App() {
           {/* Lecteurs STY */}
           <Route path="/sty-player" element={<STYPlayer />} />
           <Route path="/sty-player-sm" element={<STYPlayerSM />} />
+          <Route path="/lecteur" element={<LecteurSTY />} /> {/* ✅ Route ajoutée */}
 
           {/* Page 404 - Not Found */}
           <Route
