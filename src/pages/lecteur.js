@@ -21,13 +21,15 @@ const buttonStyle = {
   cursor: 'pointer',
   minWidth: '70px',
   userSelect: 'none',
+  whiteSpace: 'nowrap',
 };
 
 const groupStyle = {
   display: 'flex',
   alignItems: 'center',
-  marginBottom: '12px',
   justifyContent: 'center',
+  flexWrap: 'nowrap',
+  gap: '12px',
 };
 
 export default function STYPlayerFull() {
@@ -37,7 +39,7 @@ export default function STYPlayerFull() {
   const [isLoading, setIsLoading] = useState(false);
   const audioRef = useRef(null);
   const navigate = useNavigate();
-  const ITEMS_PER_PAGE = 20;
+  const ITEMS_PER_PAGE = 10; // 10 because we show 5 left + 5 right columns
   const [page, setPage] = useState(0);
 
   useEffect(() => {
@@ -113,52 +115,99 @@ export default function STYPlayerFull() {
   // Pagination slice
   const pagedBeats = beats.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
 
-  return (
-    <div style={{ padding: '20px', color: '#eee', fontFamily: 'Arial, sans-serif', maxWidth: 900, margin: 'auto' }}>
-      {!selectedBeat && (
-        <>
-          <h2>Liste des Beats</h2>
-          <ul style={{ listStyle: 'none', padding: 0 }}>
-            {pagedBeats.map((beat) => (
-              <li key={beat.id} style={{ marginBottom: 8 }}>
-                <button
-                  style={{
-                    width: '100%',
-                    textAlign: 'left',
-                    backgroundColor: '#444',
-                    border: 'none',
-                    padding: '10px 15px',
-                    borderRadius: 6,
-                    color: 'white',
-                    cursor: 'pointer',
-                    userSelect: 'none',
-                  }}
-                  onClick={() => handleSelectBeat(beat)}
-                >
-                  {beat.title}
-                </button>
-              </li>
-            ))}
-          </ul>
-          <div style={{ marginTop: 20, textAlign: 'center' }}>
-            <button
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-              disabled={page === 0}
-              style={{ marginRight: 10, padding: '6px 12px', cursor: 'pointer' }}
-            >
-              Précédent
-            </button>
-            <button
-              onClick={() => setPage((p) => (p + 1) * ITEMS_PER_PAGE < beats.length ? p + 1 : p)}
-              disabled={(page + 1) * ITEMS_PER_PAGE >= beats.length}
-              style={{ padding: '6px 12px', cursor: 'pointer' }}
-            >
-              Suivant
-            </button>
-          </div>
-        </>
-      )}
+  // Split paged beats in 2 columns: left 5, right 5
+  const leftColumn = pagedBeats.slice(0, 5);
+  const rightColumn = pagedBeats.slice(5, 10);
 
+  return (
+    <div
+      style={{
+        padding: '20px',
+        color: '#eee',
+        fontFamily: 'Arial, sans-serif',
+        maxWidth: 900,
+        margin: 'auto',
+        backgroundColor: '#2b2b2b', // gris foncé
+        minHeight: '100vh',
+      }}
+    >
+      <h2 style={{ marginBottom: 16 }}>Liste des Beats</h2>
+
+      {/* Liste en deux colonnes */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 24,
+          justifyContent: 'center',
+          marginBottom: 30,
+        }}
+      >
+        {/* Colonne gauche */}
+        <ul
+          style={{
+            listStyle: 'none',
+            padding: 0,
+            margin: 0,
+            flex: '1 1 0',
+            maxWidth: 300,
+          }}
+        >
+          {leftColumn.map((beat) => (
+            <li key={beat.id} style={{ marginBottom: 8 }}>
+              <button
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  backgroundColor: selectedBeat?.id === beat.id ? '#555' : '#444',
+                  border: 'none',
+                  padding: '10px 15px',
+                  borderRadius: 6,
+                  color: 'white',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                }}
+                onClick={() => handleSelectBeat(beat)}
+              >
+                {beat.title}
+              </button>
+            </li>
+          ))}
+        </ul>
+
+        {/* Colonne droite */}
+        <ul
+          style={{
+            listStyle: 'none',
+            padding: 0,
+            margin: 0,
+            flex: '1 1 0',
+            maxWidth: 300,
+          }}
+        >
+          {rightColumn.map((beat) => (
+            <li key={beat.id} style={{ marginBottom: 8 }}>
+              <button
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  backgroundColor: selectedBeat?.id === beat.id ? '#555' : '#444',
+                  border: 'none',
+                  padding: '10px 15px',
+                  borderRadius: 6,
+                  color: 'white',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                }}
+                onClick={() => handleSelectBeat(beat)}
+              >
+                {beat.title}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Lecteur en dessous */}
       {selectedBeat && (
         <div
           style={{
@@ -166,66 +215,57 @@ export default function STYPlayerFull() {
             backgroundColor: '#222',
             borderRadius: '10px',
             color: 'white',
+            boxShadow: '0 0 10px #f60',
+            display: 'flex',
+            justifyContent: 'center',
+            flexWrap: 'nowrap',
+            gap: '12px',
+            flexWrap: 'nowrap',
+            overflowX: 'auto',
           }}
         >
-          <h3 style={{ marginBottom: 20 }}>
-            Lecteur : <span style={{ color: '#f60' }}>{selectedBeat.title}</span>
-          </h3>
+          {/* Tous les boutons alignés horizontalement */}
+          <div style={{ textAlign: 'center', margin: '0 6px', flex: '0 0 auto' }}>
+            <div style={ledsStyle}></div>
+            <button style={buttonStyle}>ACMP</button>
+          </div>
 
-          {/* ACMP */}
-          <div style={groupStyle}>
-            <div style={{ textAlign: 'center', margin: '0 10px' }}>
+          {['INTRO A', 'INTRO B', 'INTRO C', 'INTRO D'].map((name) => (
+            <div key={name} style={{ textAlign: 'center', margin: '0 6px', flex: '0 0 auto' }}>
               <div style={ledsStyle}></div>
-              <button style={buttonStyle}>ACMP</button>
+              <button style={buttonStyle}>{name}</button>
             </div>
-          </div>
+          ))}
 
-          {/* Intros */}
-          <div style={groupStyle}>
-            {['INTRO A', 'INTRO B', 'INTRO C', 'INTRO D'].map((name) => (
-              <div key={name} style={{ textAlign: 'center', margin: '0 10px' }}>
-                <div style={ledsStyle}></div>
-                <button style={buttonStyle}>{name}</button>
-              </div>
-            ))}
-          </div>
-
-          {/* Main Controls */}
-          <div style={groupStyle}>
-            {['MAIN A', 'MAIN B', 'MAIN C', 'MAIN D'].map((name) => (
-              <div key={name} style={{ textAlign: 'center', margin: '0 10px' }}>
-                <div style={ledsStyle}></div>
-                <button style={buttonStyle}>{name}</button>
-              </div>
-            ))}
-          </div>
-
-          {/* Endings */}
-          <div style={groupStyle}>
-            {['ENDING A', 'ENDING B', 'ENDING C', 'ENDING D'].map((name) => (
-              <div key={name} style={{ textAlign: 'center', margin: '0 10px' }}>
-                <div style={ledsStyle}></div>
-                <button style={buttonStyle}>{name}</button>
-              </div>
-            ))}
-          </div>
-
-          {/* Play Button */}
-          <div style={{ ...groupStyle, justifyContent: 'center', marginTop: '20px' }}>
-            <div style={{ textAlign: 'center', margin: '0 10px' }}>
+          {['MAIN A', 'MAIN B', 'MAIN C', 'MAIN D'].map((name) => (
+            <div key={name} style={{ textAlign: 'center', margin: '0 6px', flex: '0 0 auto' }}>
               <div style={ledsStyle}></div>
-              <button
-                onClick={togglePlay}
-                style={{ ...buttonStyle, minWidth: '100px', backgroundColor: isPlaying ? '#fa3' : '#f60' }}
-                disabled={isLoading}
-              >
-                {isLoading ? 'Chargement...' : isPlaying ? 'STOP' : 'PLAY'}
-              </button>
+              <button style={buttonStyle}>{name}</button>
             </div>
+          ))}
+
+          {['ENDING A', 'ENDING B', 'ENDING C', 'ENDING D'].map((name) => (
+            <div key={name} style={{ textAlign: 'center', margin: '0 6px', flex: '0 0 auto' }}>
+              <div style={ledsStyle}></div>
+              <button style={buttonStyle}>{name}</button>
+            </div>
+          ))}
+
+          {/* Bouton Play */}
+          <div style={{ textAlign: 'center', margin: '0 6px', flex: '0 0 auto' }}>
+            <div style={ledsStyle}></div>
+            <button
+              onClick={togglePlay}
+              style={{ ...buttonStyle, minWidth: '100px', backgroundColor: isPlaying ? '#fa3' : '#f60' }}
+              disabled={isLoading}
+            >
+              {isLoading ? 'Chargement...' : isPlaying ? 'STOP' : 'PLAY'}
+            </button>
           </div>
 
           {/* Bouton fermer */}
-          <div style={{ textAlign: 'center', marginTop: '20px' }}>
+          <div style={{ textAlign: 'center', margin: '0 6px', flex: '0 0 auto' }}>
+            <div style={{ width: '12px', height: '12px', marginBottom: '6px' }}></div> {/* Vide pour alignement */}
             <button
               onClick={() => {
                 stopPlayback();
@@ -241,6 +281,24 @@ export default function STYPlayerFull() {
           <audio ref={audioRef} />
         </div>
       )}
+
+      {/* Pagination */}
+      <div style={{ marginTop: 30, textAlign: 'center' }}>
+        <button
+          onClick={() => setPage((p) => Math.max(0, p - 1))}
+          disabled={page === 0}
+          style={{ marginRight: 10, padding: '6px 12px', cursor: 'pointer' }}
+        >
+          Précédent
+        </button>
+        <button
+          onClick={() => setPage((p) => (p + 1) * ITEMS_PER_PAGE < beats.length ? p + 1 : p)}
+          disabled={(page + 1) * ITEMS_PER_PAGE >= beats.length}
+          style={{ padding: '6px 12px', cursor: 'pointer' }}
+        >
+          Suivant
+        </button>
+      </div>
     </div>
   );
 }
