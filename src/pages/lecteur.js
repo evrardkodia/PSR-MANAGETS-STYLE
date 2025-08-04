@@ -3,6 +3,33 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { BACKEND_URL } from './config';
 
+const ledsStyle = {
+  width: '12px',
+  height: '12px',
+  borderRadius: '50%',
+  backgroundColor: 'orange',
+  margin: '0 auto 6px auto',
+};
+
+const buttonStyle = {
+  backgroundColor: '#333',
+  color: 'white',
+  border: 'none',
+  padding: '8px 12px',
+  margin: '0 6px',
+  borderRadius: '4px',
+  cursor: 'pointer',
+  minWidth: '70px',
+  userSelect: 'none',
+};
+
+const groupStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  marginBottom: '12px',
+  justifyContent: 'center',
+};
+
 export default function STYPlayerFull() {
   const [beats, setBeats] = useState([]);
   const [selectedBeat, setSelectedBeat] = useState(null);
@@ -11,103 +38,209 @@ export default function STYPlayerFull() {
   const audioRef = useRef(null);
   const navigate = useNavigate();
   const ITEMS_PER_PAGE = 20;
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(0);
 
   useEffect(() => {
-    const fetchBeats = async () => {
-      try {
-        const response = await axios.get(`${BACKEND_URL}/beats?page=${page}&limit=${ITEMS_PER_PAGE}`);
-        setBeats(response.data);
-      } catch (error) {
-        console.error('Error fetching beats:', error);
-      }
-    };
+    const token = localStorage.getItem('token');
+    if (!token) return navigate('/auth');
+    axios
+      .get(`${BACKEND_URL}/api/beats/public`)
+      .then((res) => {
+        const sorted = res.data.beats.sort((a, b) => a.title.localeCompare(b.title));
+        setBeats(sorted);
+      })
+      .catch(() => navigate('/auth'));
+  }, [navigate]);
 
-    fetchBeats();
-  }, [page]);
-
-  const handleBeatClick = (beat) => {
+  const handleSelectBeat = (beat) => {
+    if (isPlaying) {
+      stopPlayback();
+    }
     setSelectedBeat(beat);
-    setIsPlaying(false);
   };
 
-  const togglePlay = () => {
+  const stopPlayback = () => {
     if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.pause();
-      } else {
-        audioRef.current.play();
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current.removeAttribute('src');
+      audioRef.current.load();
+    }
+    setIsPlaying(false);
+    setIsLoading(false);
+  };
+
+  const togglePlay = async () => {
+    if (!selectedBeat) {
+      alert('⚠️ Veuillez sélectionner un beat avant de jouer.');
+      return;
+    }
+    if (isPlaying) {
+      stopPlayback();
+      return;
+    }
+
+    setIsLoading(true);
+    const token = localStorage.getItem('token');
+
+    try {
+      const response = await axios.post(
+        `${BACKEND_URL}/api/player/play-full`,
+        { beatId: selectedBeat.id },
+        {
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          responseType: 'blob',
+        }
+      );
+
+      const blob = new Blob([response.data], { type: 'audio/wav' });
+      const url = URL.createObjectURL(blob);
+
+      if (audioRef.current) {
+        audioRef.current.src = url;
+        audioRef.current.loop = true;
+        await audioRef.current.play();
       }
-      setIsPlaying(!isPlaying);
+      setIsPlaying(true);
+    } catch (error) {
+      console.error('❌ Erreur lecture:', error);
+      alert('Erreur lors de la lecture du beat. Veuillez réessayer.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  return (
-    <div className="p-6 text-white bg-black min-h-screen">
-      <h1 className="text-4xl font-extrabold mb-4 select-none drop-shadow-lg">STY Player</h1>
+  // Pagination slice
+  const pagedBeats = beats.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
 
-      <div className="flex gap-1 mb-6 bg-[#111] px-3 py-2 rounded-md shadow-inner border border-gray-700">
-        {Array.from({ length: 11 }).map((_, i) => (
-          <div
-            key={i}
-            className="w-6 h-10 bg-gradient-to-b from-blue-500 to-gray-700 border border-gray-600 rounded-sm"
-          />
-        ))}
-        <div
-          className="w-6 h-10 bg-gradient-to-b from-blue-500 to-gray-700 border border-gray-600 rounded-sm relative"
-          title="Play"
-        >
-          <span className="absolute inset-0 flex items-center justify-center text-white text-xs font-bold">▶</span>
-        </div>
-      </div>
+  return (
+    <div style={{ padding: '20px', color: '#eee', fontFamily: 'Arial, sans-serif', maxWidth: 900, margin: 'auto' }}>
+      {!selectedBeat && (
+        <>
+          <h2>Liste des Beats</h2>
+          <ul style={{ listStyle: 'none', padding: 0 }}>
+            {pagedBeats.map((beat) => (
+              <li key={beat.id} style={{ marginBottom: 8 }}>
+                <button
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    backgroundColor: '#444',
+                    border: 'none',
+                    padding: '10px 15px',
+                    borderRadius: 6,
+                    color: 'white',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                  }}
+                  onClick={() => handleSelectBeat(beat)}
+                >
+                  {beat.title}
+                </button>
+              </li>
+            ))}
+          </ul>
+          <div style={{ marginTop: 20, textAlign: 'center' }}>
+            <button
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={page === 0}
+              style={{ marginRight: 10, padding: '6px 12px', cursor: 'pointer' }}
+            >
+              Précédent
+            </button>
+            <button
+              onClick={() => setPage((p) => (p + 1) * ITEMS_PER_PAGE < beats.length ? p + 1 : p)}
+              disabled={(page + 1) * ITEMS_PER_PAGE >= beats.length}
+              style={{ padding: '6px 12px', cursor: 'pointer' }}
+            >
+              Suivant
+            </button>
+          </div>
+        </>
+      )}
 
       {selectedBeat && (
-        <div className="p-4 border border-gray-700 rounded-lg bg-gray-900 mb-4">
-          <h2 className="text-xl font-bold mb-2">{selectedBeat.name}</h2>
+        <div
+          style={{
+            padding: '20px',
+            backgroundColor: '#222',
+            borderRadius: '10px',
+            color: 'white',
+          }}
+        >
+          <h3 style={{ marginBottom: 20 }}>
+            Lecteur : <span style={{ color: '#f60' }}>{selectedBeat.title}</span>
+          </h3>
 
-          <div className="grid grid-cols-4 gap-2 mb-4">
-            <button className="bg-blue-800 py-2 rounded">ACMP</button>
-            <button className="bg-gray-700 py-2 rounded">INTRO A</button>
-            <button className="bg-gray-700 py-2 rounded">INTRO B</button>
-            <button className="bg-gray-700 py-2 rounded">INTRO C</button>
-            <button className="bg-gray-700 py-2 rounded">INTRO D</button>
-            <button className="bg-green-800 py-2 rounded">MAIN A</button>
-            <button className="bg-green-800 py-2 rounded">MAIN B</button>
-            <button className="bg-green-800 py-2 rounded">MAIN C</button>
-            <button className="bg-green-800 py-2 rounded">MAIN D</button>
-            <button className="bg-red-800 py-2 rounded">ENDING A</button>
-            <button className="bg-red-800 py-2 rounded">ENDING B</button>
-            <button className="bg-red-800 py-2 rounded">ENDING C</button>
-            <button className="bg-red-800 py-2 rounded">ENDING D</button>
+          {/* ACMP */}
+          <div style={groupStyle}>
+            <div style={{ textAlign: 'center', margin: '0 10px' }}>
+              <div style={ledsStyle}></div>
+              <button style={buttonStyle}>ACMP</button>
+            </div>
+          </div>
+
+          {/* Intros */}
+          <div style={groupStyle}>
+            {['INTRO A', 'INTRO B', 'INTRO C', 'INTRO D'].map((name) => (
+              <div key={name} style={{ textAlign: 'center', margin: '0 10px' }}>
+                <div style={ledsStyle}></div>
+                <button style={buttonStyle}>{name}</button>
+              </div>
+            ))}
+          </div>
+
+          {/* Main Controls */}
+          <div style={groupStyle}>
+            {['MAIN A', 'MAIN B', 'MAIN C', 'MAIN D'].map((name) => (
+              <div key={name} style={{ textAlign: 'center', margin: '0 10px' }}>
+                <div style={ledsStyle}></div>
+                <button style={buttonStyle}>{name}</button>
+              </div>
+            ))}
+          </div>
+
+          {/* Endings */}
+          <div style={groupStyle}>
+            {['ENDING A', 'ENDING B', 'ENDING C', 'ENDING D'].map((name) => (
+              <div key={name} style={{ textAlign: 'center', margin: '0 10px' }}>
+                <div style={ledsStyle}></div>
+                <button style={buttonStyle}>{name}</button>
+              </div>
+            ))}
+          </div>
+
+          {/* Play Button */}
+          <div style={{ ...groupStyle, justifyContent: 'center', marginTop: '20px' }}>
+            <div style={{ textAlign: 'center', margin: '0 10px' }}>
+              <div style={ledsStyle}></div>
+              <button
+                onClick={togglePlay}
+                style={{ ...buttonStyle, minWidth: '100px', backgroundColor: isPlaying ? '#fa3' : '#f60' }}
+                disabled={isLoading}
+              >
+                {isLoading ? 'Chargement...' : isPlaying ? 'STOP' : 'PLAY'}
+              </button>
+            </div>
+          </div>
+
+          {/* Bouton fermer */}
+          <div style={{ textAlign: 'center', marginTop: '20px' }}>
             <button
-              className="col-span-4 bg-yellow-500 py-3 rounded text-black font-bold mt-2"
-              onClick={togglePlay}
+              onClick={() => {
+                stopPlayback();
+                setSelectedBeat(null);
+              }}
+              style={{ ...buttonStyle, backgroundColor: '#900', minWidth: 120 }}
             >
-              {isPlaying ? 'PAUSE' : 'PLAY'}
+              FERMER
             </button>
           </div>
 
-          <audio ref={audioRef} src={selectedBeat.audioUrl} preload="auto" />
+          {/* Audio element caché */}
+          <audio ref={audioRef} />
         </div>
       )}
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {beats.map((beat) => (
-          <div
-            key={beat._id}
-            className="beat-container"
-            onClick={() => handleBeatClick(beat)}
-          >
-            <div className="icon-container">
-              <img src="/icons/wav.png" alt="icon" />
-            </div>
-            <div>
-              <div className="beat-text">{beat.name}</div>
-              <div className="beat-subtext">{beat.genre}</div>
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
