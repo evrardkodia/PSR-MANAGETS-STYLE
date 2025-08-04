@@ -24,14 +24,6 @@ const buttonStyle = {
   whiteSpace: 'nowrap',
 };
 
-const groupStyle = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  flexWrap: 'nowrap',
-  gap: '12px',
-};
-
 export default function STYPlayerFull() {
   const [beats, setBeats] = useState([]);
   const [selectedBeat, setSelectedBeat] = useState(null);
@@ -39,7 +31,7 @@ export default function STYPlayerFull() {
   const [isLoading, setIsLoading] = useState(false);
   const audioRef = useRef(null);
   const navigate = useNavigate();
-  const ITEMS_PER_PAGE = 10; // 10 because we show 5 left + 5 right columns
+  const ITEMS_PER_PAGE = 10;
   const [page, setPage] = useState(0);
 
   useEffect(() => {
@@ -48,7 +40,12 @@ export default function STYPlayerFull() {
     axios
       .get(`${BACKEND_URL}/api/beats/public`)
       .then((res) => {
-        const sorted = res.data.beats.sort((a, b) => a.title.localeCompare(b.title));
+        const sorted = res.data.beats
+          .sort((a, b) => a.title.localeCompare(b.title))
+          .map((beat) => ({
+            ...beat,
+            icon: `/icons/${Math.floor(Math.random() * 10 + 1)}.png`,
+          }));
         setBeats(sorted);
       })
       .catch(() => navigate('/auth'));
@@ -112,10 +109,7 @@ export default function STYPlayerFull() {
     }
   };
 
-  // Pagination slice
   const pagedBeats = beats.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
-
-  // Split paged beats in 2 columns: left 5, right 5
   const leftColumn = pagedBeats.slice(0, 5);
   const rightColumn = pagedBeats.slice(5, 10);
 
@@ -125,33 +119,15 @@ export default function STYPlayerFull() {
         padding: '20px',
         color: '#eee',
         fontFamily: 'Arial, sans-serif',
-        maxWidth: 900,
-        margin: 'auto',
-        backgroundColor: '#2b2b2b', // gris foncé
+        backgroundColor: '#1e1e1e',
         minHeight: '100vh',
       }}
     >
       <h2 style={{ marginBottom: 16 }}>Liste des Beats</h2>
 
-      {/* Liste en deux colonnes */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 24,
-          justifyContent: 'center',
-          marginBottom: 30,
-        }}
-      >
+      <div style={{ display: 'flex', gap: 24, justifyContent: 'center', marginBottom: 30 }}>
         {/* Colonne gauche */}
-        <ul
-          style={{
-            listStyle: 'none',
-            padding: 0,
-            margin: 0,
-            flex: '1 1 0',
-            maxWidth: 300,
-          }}
-        >
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0, flex: '1 1 0', maxWidth: 300 }}>
           {leftColumn.map((beat) => (
             <li key={beat.id} style={{ marginBottom: 8 }}>
               <button
@@ -164,10 +140,13 @@ export default function STYPlayerFull() {
                   borderRadius: 6,
                   color: 'white',
                   cursor: 'pointer',
-                  userSelect: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
                 }}
                 onClick={() => handleSelectBeat(beat)}
               >
+                <img src={beat.icon} alt="icon" style={{ width: 30, height: 30, borderRadius: 6 }} />
                 {beat.title}
               </button>
             </li>
@@ -175,15 +154,7 @@ export default function STYPlayerFull() {
         </ul>
 
         {/* Colonne droite */}
-        <ul
-          style={{
-            listStyle: 'none',
-            padding: 0,
-            margin: 0,
-            flex: '1 1 0',
-            maxWidth: 300,
-          }}
-        >
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0, flex: '1 1 0', maxWidth: 300 }}>
           {rightColumn.map((beat) => (
             <li key={beat.id} style={{ marginBottom: 8 }}>
               <button
@@ -196,10 +167,13 @@ export default function STYPlayerFull() {
                   borderRadius: 6,
                   color: 'white',
                   cursor: 'pointer',
-                  userSelect: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
                 }}
                 onClick={() => handleSelectBeat(beat)}
               >
+                <img src={beat.icon} alt="icon" style={{ width: 30, height: 30, borderRadius: 6 }} />
                 {beat.title}
               </button>
             </li>
@@ -207,7 +181,7 @@ export default function STYPlayerFull() {
         </ul>
       </div>
 
-      {/* Lecteur en dessous */}
+      {/* Lecteur */}
       {selectedBeat && (
         <div
           style={{
@@ -218,13 +192,10 @@ export default function STYPlayerFull() {
             boxShadow: '0 0 10px #f60',
             display: 'flex',
             justifyContent: 'center',
-            flexWrap: 'nowrap',
             gap: '12px',
-            flexWrap: 'nowrap',
             overflowX: 'auto',
           }}
         >
-          {/* Tous les boutons alignés horizontalement */}
           <div style={{ textAlign: 'center', margin: '0 6px', flex: '0 0 auto' }}>
             <div style={ledsStyle}></div>
             <button style={buttonStyle}>ACMP</button>
@@ -265,7 +236,7 @@ export default function STYPlayerFull() {
 
           {/* Bouton fermer */}
           <div style={{ textAlign: 'center', margin: '0 6px', flex: '0 0 auto' }}>
-            <div style={{ width: '12px', height: '12px', marginBottom: '6px' }}></div> {/* Vide pour alignement */}
+            <div style={{ width: '12px', height: '12px', marginBottom: '6px' }}></div>
             <button
               onClick={() => {
                 stopPlayback();
@@ -277,7 +248,6 @@ export default function STYPlayerFull() {
             </button>
           </div>
 
-          {/* Audio element caché */}
           <audio ref={audioRef} />
         </div>
       )}
