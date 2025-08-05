@@ -213,7 +213,7 @@ export default function STYPlayerFull() {
             <div key={name} style={{ textAlign: 'center', margin: '0 6px', flex: '0 0 auto' }}>
               <div style={{ fontSize: '8px', marginBottom: 2 }}>{name}</div>
               <div style={ledsStyle}></div>
-              <button style={buttonStyle}></button>
+              <button style={buttonStyle}>{name}</button>
             </div>
           ))}
 
