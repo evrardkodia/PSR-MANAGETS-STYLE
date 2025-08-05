@@ -18,7 +18,7 @@ export default function STYPlayer() {
   const [mainBlinking, setMainBlinking] = useState(null);
   const [playColor, setPlayColor] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [wavUrl, setWavUrl] = useState(null); // URL du wav prêt à jouer
+  const [wavUrl, setWavUrl] = useState(null);
 
   const playTimerRef = useRef(null);
   const blinkStepIndex = useRef(0);
@@ -26,6 +26,7 @@ export default function STYPlayer() {
   const navigate = useNavigate();
   const ITEMS_PER_PAGE = 20;
 
+  // Séquence de clignotement pour le bouton Play
   const blinkSequence = [
     { color: 'blue', duration: 100 },
     { color: null, duration: 500 },
@@ -37,7 +38,7 @@ export default function STYPlayer() {
     { color: null, duration: 500 },
   ];
 
-  // Clignotement du bouton play quand play actif
+  // Clignotement bouton Play quand en lecture
   useEffect(() => {
     if (controls.play) {
       blinkStepIndex.current = 0;
@@ -60,7 +61,10 @@ export default function STYPlayer() {
   // Chargement des beats au montage
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (!token) return navigate('/auth');
+    if (!token) {
+      navigate('/auth');
+      return;
+    }
     axios
       .get('/api/beats/me', { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => {
@@ -81,12 +85,13 @@ export default function STYPlayer() {
     };
   }, []);
 
-  // Fonction appelée quand on sélectionne un beat
-  // Elle déclenche la préproduction : extraction main + conversion wav
-  // Ne lance pas la lecture
+  // Sélection d'un beat -> déclenche préparation main + wav côté backend
   const handleSelectBeat = async (beat) => {
+    if (isLoading) return;
     setIsLoading(true);
     setSelectedBeat(beat);
+
+    // Reset controls à état initial sauf beat sélectionné
     setControls({
       acmp: false,
       autofill: false,
@@ -100,6 +105,7 @@ export default function STYPlayer() {
     setPlayColor(null);
     clearTimeout(playTimerRef.current);
 
+    // Stop audio et reset source
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
@@ -110,22 +116,16 @@ export default function STYPlayer() {
 
     try {
       const token = localStorage.getItem('token');
-      // Envoi backend pour extraction + conversion main
-      // backend doit exposer une route /api/player/prepare-main
-      // qui prépare le main (extrait + convertit wav) en asynchrone
-      // ici on attend juste la confirmation que le wav est prêt
-      const section = `Main ${controls.main}`;
       const response = await axios.post(
         '/api/player/prepare-main',
         {
           beatId: beat.id,
-          mainLetter: controls.main,
-          acmpEnabled: controls.acmp,
-          disabledChannels: controls.disabledChannels,
+          mainLetter: 'A',
+          acmpEnabled: false,
+          disabledChannels: [11, 12, 13, 14, 15, 16],
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      // On suppose que le backend répond { wavUrl: 'url_du_wav' }
       if (response.data.wavUrl) {
         setWavUrl(response.data.wavUrl);
       } else {
@@ -139,14 +139,12 @@ export default function STYPlayer() {
     }
   };
 
-  // Gestion du changement de "main" (lettre A,B,C,D)
-  // Doit aussi re-préparer le WAV main correspondant côté serveur
+  // Changement de main (A,B,C,D) -> re-préparer WAV main
   const handleChangeMain = async (newMain) => {
+    if (isLoading || !selectedBeat) return;
     setMainBlinking(newMain);
     setControls((prev) => ({ ...prev, main: newMain }));
 
-    // Refaire la préparation côté backend pour ce main
-    if (!selectedBeat) return;
     setIsLoading(true);
     try {
       const token = localStorage.getItem('token');
@@ -175,15 +173,14 @@ export default function STYPlayer() {
     setTimeout(() => setMainBlinking(null), 2000);
   };
 
-  // Play / Stop : uniquement lancer ou arrêter la lecture du wav déjà prêt
+  // Toggle play/pause avec lecture WAV
   const togglePlay = async () => {
     if (!selectedBeat || isLoading) {
       alert('⚠️ Aucun beat sélectionné ou chargement en cours.');
       return;
     }
-
     if (!wavUrl) {
-      alert('⚠️ Le fichier audio n\'est pas prêt, veuillez patienter.');
+      alert("⚠️ Le fichier audio n'est pas prêt, veuillez patienter.");
       return;
     }
 
@@ -204,32 +201,39 @@ export default function STYPlayer() {
         audioRef.current.currentTime = 0;
         audioRef.current.loop = true;
         try {
+          // Optionnel : notifier backend du démarrage de lecture
+          const token = localStorage.getItem('token');
+          await axios.post(
+            '/api/player/play-section',
+            { beatId: selectedBeat.id, mainLetter: controls.main },
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+
           await audioRef.current.play();
           setControls((prev) => ({ ...prev, play: true }));
         } catch (err) {
-          console.error('❌ Lecture audio échouée :', err);
+          console.error('❌ Lecture audio échouée ou notification backend échouée :', err);
           alert('❌ Impossible de lire le fichier audio');
         }
       }
     }
   };
 
-  // Wrapper pour handleControlClick avec prise en charge du main
+  // Gère clics sur boutons
   const handleControlClick = (type, value = null) => {
     if (type === 'main') {
       handleChangeMain(value);
       return;
     }
-
     if (type === 'play') {
       togglePlay();
       return;
     }
-
     setControls((prev) => {
       const updated = { ...prev };
-      if (type === 'acmp' || type === 'autofill') updated[type] = !prev[type];
-      else if (type === 'intro') {
+      if (type === 'acmp' || type === 'autofill') {
+        updated[type] = !prev[type];
+      } else if (type === 'intro') {
         updated.intro = prev.intro === value ? '' : value;
         updated.ending = '';
       } else if (type === 'ending') {
@@ -240,10 +244,12 @@ export default function STYPlayer() {
     });
   };
 
+  // Pagination
   const currentPageBeats = beats.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
   const leftColumn = currentPageBeats.slice(0, 10);
   const rightColumn = currentPageBeats.slice(10, 20);
 
+  // Rendu carte beat
   const renderBeatCard = (beat) => (
     <div
       key={beat.id}
@@ -251,6 +257,7 @@ export default function STYPlayer() {
       className={`flex items-center gap-3 cursor-pointer p-2 mb-2 rounded-md transition hover:bg-blue-700 ${
         selectedBeat?.id === beat.id ? 'bg-blue-800' : 'bg-[#3a3a3a]'
       }`}
+      title={`Tempo: ${beat.tempo} BPM, Signature: ${beat.signature}`}
     >
       <div className="w-10 h-10 bg-white flex items-center justify-center rounded-sm">
         <img src={getIconPath(beat.title)} alt="icon" className="w-8 h-8 object-contain" />
@@ -264,6 +271,7 @@ export default function STYPlayer() {
     </div>
   );
 
+  // Rendu bouton avec styles et clignotement
   const renderButton = (type, label, isActive, onClick, isBlinking = false) => {
     let colorClass = 'bg-transparent';
     if (type === 'acmp' || type === 'autofill') {
@@ -275,11 +283,12 @@ export default function STYPlayer() {
     }
 
     return (
-      <div onClick={onClick} className="flex flex-col items-center cursor-pointer">
+      <div onClick={onClick} className="flex flex-col items-center cursor-pointer select-none">
         <div className={`w-8 h-2 mb-1 rounded-sm transition-all duration-300 ${colorClass}`} />
         <button
           className="text-white bg-[#333] w-16 h-[60px] rounded-md font-bold"
           style={{ fontSize: type === 'main' ? '1.2rem' : '0.65rem' }}
+          disabled={isLoading && type === 'play'}
         >
           {label}
         </button>
@@ -287,7 +296,7 @@ export default function STYPlayer() {
     );
   };
 
-  // Calcul icone (idem code existant)
+  // Génère chemin icône en fonction du titre
   const getIconPath = (title) => {
     const iconCount = 10;
     let sum = 0;
@@ -296,11 +305,16 @@ export default function STYPlayer() {
     return `/icons/${index}.png`;
   };
 
+  // Pagination simple boutons précédent / suivant
+  const canGoPrev = page > 0;
+  const canGoNext = (page + 1) * ITEMS_PER_PAGE < beats.length;
+
   return (
-    <div className="min-h-screen bg-[#1a1a1a] text-white p-6">
+    <div className="min-h-screen bg-[#1a1a1a] text-white p-6 select-none">
       <audio ref={audioRef} hidden />
       <h1 className="text-3xl font-bold text-center mb-4">🎧 PSR MANAGER STYLE</h1>
 
+      {/* Liste beats */}
       <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <div className="bg-[#2a2a2a] p-4 rounded-xl shadow-inner">
           {leftColumn.length === 0 ? (
@@ -318,13 +332,33 @@ export default function STYPlayer() {
         </div>
       </div>
 
+      {/* Pagination */}
+      <div className="flex justify-center gap-4 mb-6">
+        <button
+          onClick={() => canGoPrev && setPage((p) => p - 1)}
+          disabled={!canGoPrev}
+          className="bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white py-2 px-4 rounded"
+        >
+          ← Précédent
+        </button>
+        <button
+          onClick={() => canGoNext && setPage((p) => p + 1)}
+          disabled={!canGoNext}
+          className="bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white py-2 px-4 rounded"
+        >
+          Suivant →
+        </button>
+      </div>
+
+      {/* Contrôles et infos du beat sélectionné */}
       {selectedBeat && (
-        <div className="bg-[#2a2a2a] p-4 rounded-xl text-center space-y-3">
+        <div className="bg-[#2a2a2a] p-4 rounded-xl text-center space-y-3 max-w-xl mx-auto">
           <h2 className="text-xl font-semibold">{selectedBeat.title}</h2>
           <p className="text-gray-400">Tempo : {selectedBeat.tempo} BPM</p>
           <p className="text-gray-400">Signature : {selectedBeat.signature}</p>
           <p className="text-gray-400">Description : {selectedBeat.description || 'Aucune'}</p>
 
+          {/* Boutons de contrôle */}
           <div className="flex flex-nowrap overflow-x-auto justify-center gap-2 mt-6 bg-[#1c1c1c] p-3 rounded-lg">
             {renderButton('acmp', 'ACMP', controls.acmp, () => handleControlClick('acmp'))}
             {renderButton('autofill', 'AUTO-FILL', controls.autofill, () => handleControlClick('autofill'))}
@@ -338,6 +372,7 @@ export default function STYPlayer() {
               renderButton('ending', `END ${i}`, controls.ending === i, () => handleControlClick('ending', i))
             )}
 
+            {/* Bouton play */}
             <div className="flex flex-col items-center cursor-pointer" onClick={() => handleControlClick('play')}>
               <div
                 className={`w-8 h-2 mb-1 rounded-sm ${
@@ -351,6 +386,7 @@ export default function STYPlayer() {
               <button
                 className="text-[10px] bg-gray-300 hover:bg-gray-400 text-black w-16 h-[60px] rounded-md font-bold"
                 disabled={isLoading}
+                title={isLoading ? "Chargement en cours..." : controls.play ? "Arrêter la lecture" : "Lire le beat"}
               >
                 {isLoading ? '⏳' : controls.play ? '⏹ STOP' : '▶️ PLAY'}
               </button>
@@ -362,6 +398,17 @@ export default function STYPlayer() {
       <style>{`
         .glow {
           box-shadow: 0 0 8px 3px currentColor;
+        }
+        @keyframes orangeBlueBlink {
+          0%, 100% { background-color: orange; }
+          50% { background-color: blue; }
+        }
+        .animate-orange-blue-blink {
+          animation: orangeBlueBlink 1.5s infinite;
+        }
+        /* Scroll horizontal pour boutons contrôle si overflow */
+        .flex-nowrap {
+          white-space: nowrap;
         }
       `}</style>
     </div>
