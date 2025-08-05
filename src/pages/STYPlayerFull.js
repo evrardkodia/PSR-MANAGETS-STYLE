@@ -1,4 +1,3 @@
-// STYPlayer.js
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -19,6 +18,7 @@ export default function STYPlayer() {
   const [mainBlinking, setMainBlinking] = useState(null);
   const [playColor, setPlayColor] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [wavUrl, setWavUrl] = useState(null); // URL du wav prêt à jouer
 
   const playTimerRef = useRef(null);
   const blinkStepIndex = useRef(0);
@@ -37,6 +37,7 @@ export default function STYPlayer() {
     { color: null, duration: 500 },
   ];
 
+  // Clignotement du bouton play quand play actif
   useEffect(() => {
     if (controls.play) {
       blinkStepIndex.current = 0;
@@ -56,6 +57,7 @@ export default function STYPlayer() {
     return () => clearTimeout(playTimerRef.current);
   }, [controls.play]);
 
+  // Chargement des beats au montage
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) return navigate('/auth');
@@ -68,85 +70,22 @@ export default function STYPlayer() {
       .catch(() => navigate('/auth'));
   }, [navigate]);
 
-  const getIconPath = (title) => {
-    const iconCount = 10;
-    let sum = 0;
-    for (let i = 0; i < title.length; i++) sum += title.charCodeAt(i);
-    const index = (sum % iconCount) + 1;
-    return `/icons/${index}.png`;
-  };
-
-  const togglePlay = async () => {
-    if (!selectedBeat || isLoading) {
-      alert('⚠️ Aucun beat sélectionné ou chargement en cours.');
-      return;
-    }
-
-    const token = localStorage.getItem('token');
-    let section = `Main ${controls.main}`;
-    if (controls.intro) section = `Intro ${controls.intro}`;
-    else if (controls.ending) section = `Ending ${controls.ending}`;
-
-    if (controls.play && audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      audioRef.current.removeAttribute('src');
-      audioRef.current.load();
-      try {
-        await axios.post(
-          '/api/player/cleanup',
-          { beatId: selectedBeat.id, section },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-      } catch (err) {
-        console.warn('⚠️ Cleanup fail:', err.message || err);
-      }
-      setControls((prev) => ({ ...prev, play: false }));
-      setPlayColor(null);
-      clearTimeout(playTimerRef.current);
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const response = await axios.post(
-        '/api/player/play-section',
-        {
-          beatId: selectedBeat.id,
-          section,
-          acmpEnabled: controls.acmp,
-          disabledChannels: controls.disabledChannels,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          responseType: 'blob',
-        }
-      );
-
-      const blob = new Blob([response.data], { type: 'audio/wav' });
-      const url = URL.createObjectURL(blob);
-
+  // Nettoyer l'audio à la destruction du composant
+  useEffect(() => {
+    return () => {
       if (audioRef.current) {
-        audioRef.current.src = url;
+        audioRef.current.pause();
+        audioRef.current.src = '';
         audioRef.current.load();
-        audioRef.current.currentTime = 0;
-        audioRef.current.loop = true; // 🔁 lecture en boucle
-        await audioRef.current.play();
       }
+    };
+  }, []);
 
-      setControls((prev) => ({ ...prev, play: true }));
-    } catch (err) {
-      console.error('❌ Lecture échouée :', err.message || err);
-      alert('❌ Lecture échouée. Fichier .sty peut-être manquant ou invalide.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSelectBeat = (beat) => {
+  // Fonction appelée quand on sélectionne un beat
+  // Elle déclenche la préproduction : extraction main + conversion wav
+  // Ne lance pas la lecture
+  const handleSelectBeat = async (beat) => {
+    setIsLoading(true);
     setSelectedBeat(beat);
     setControls({
       acmp: false,
@@ -160,38 +99,125 @@ export default function STYPlayer() {
     setMainBlinking(null);
     setPlayColor(null);
     clearTimeout(playTimerRef.current);
+
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
       audioRef.current.removeAttribute('src');
       audioRef.current.load();
     }
+    setWavUrl(null);
+
+    try {
+      const token = localStorage.getItem('token');
+      // Envoi backend pour extraction + conversion main
+      // backend doit exposer une route /api/player/prepare-main
+      // qui prépare le main (extrait + convertit wav) en asynchrone
+      // ici on attend juste la confirmation que le wav est prêt
+      const section = `Main ${controls.main}`;
+      const response = await axios.post(
+        '/api/player/prepare-main',
+        {
+          beatId: beat.id,
+          mainLetter: controls.main,
+          acmpEnabled: controls.acmp,
+          disabledChannels: controls.disabledChannels,
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      // On suppose que le backend répond { wavUrl: 'url_du_wav' }
+      if (response.data.wavUrl) {
+        setWavUrl(response.data.wavUrl);
+      } else {
+        alert("❌ Erreur: fichier WAV non disponible après préparation");
+      }
+    } catch (err) {
+      console.error('❌ Préparation du beat échouée :', err);
+      alert("❌ Échec de la préparation du beat");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
+  // Gestion du changement de "main" (lettre A,B,C,D)
+  // Doit aussi re-préparer le WAV main correspondant côté serveur
+  const handleChangeMain = async (newMain) => {
+    setMainBlinking(newMain);
+    setControls((prev) => ({ ...prev, main: newMain }));
+
+    // Refaire la préparation côté backend pour ce main
+    if (!selectedBeat) return;
+    setIsLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post(
+        '/api/player/prepare-main',
+        {
+          beatId: selectedBeat.id,
+          mainLetter: newMain,
+          acmpEnabled: controls.acmp,
+          disabledChannels: controls.disabledChannels,
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (response.data.wavUrl) {
+        setWavUrl(response.data.wavUrl);
+      } else {
+        alert("❌ Erreur: fichier WAV non disponible après préparation");
+      }
+    } catch (err) {
+      console.error('❌ Préparation main échouée :', err);
+      alert("❌ Échec de la préparation du main");
+    } finally {
+      setIsLoading(false);
+    }
+
+    setTimeout(() => setMainBlinking(null), 2000);
+  };
+
+  // Play / Stop : uniquement lancer ou arrêter la lecture du wav déjà prêt
+  const togglePlay = async () => {
+    if (!selectedBeat || isLoading) {
+      alert('⚠️ Aucun beat sélectionné ou chargement en cours.');
+      return;
+    }
+
+    if (!wavUrl) {
+      alert('⚠️ Le fichier audio n\'est pas prêt, veuillez patienter.');
+      return;
+    }
+
+    if (controls.play) {
+      // Stop
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+      setControls((prev) => ({ ...prev, play: false }));
+      setPlayColor(null);
+      clearTimeout(playTimerRef.current);
+    } else {
+      // Play
+      if (audioRef.current) {
+        audioRef.current.src = wavUrl;
+        audioRef.current.load();
+        audioRef.current.currentTime = 0;
+        audioRef.current.loop = true;
+        try {
+          await audioRef.current.play();
+          setControls((prev) => ({ ...prev, play: true }));
+        } catch (err) {
+          console.error('❌ Lecture audio échouée :', err);
+          alert('❌ Impossible de lire le fichier audio');
+        }
+      }
+    }
+  };
+
+  // Wrapper pour handleControlClick avec prise en charge du main
   const handleControlClick = (type, value = null) => {
     if (type === 'main') {
-      const newMain = value;
-      const isAlreadyPlaying = controls.play;
-
-      if (isAlreadyPlaying && controls.autofill) {
-        const token = localStorage.getItem('token');
-        axios.post(
-          '/api/player/fill-then-main',
-          {
-            beatId: selectedBeat.id,
-            mainLetter: newMain,
-            acmpEnabled: controls.acmp,
-            disabledChannels: controls.disabledChannels,
-          },
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-      }
-
-      setMainBlinking(newMain);
-      setControls((prev) => ({ ...prev, main: newMain }));
-      setTimeout(() => setMainBlinking(null), 2000);
+      handleChangeMain(value);
       return;
     }
 
@@ -261,6 +287,15 @@ export default function STYPlayer() {
     );
   };
 
+  // Calcul icone (idem code existant)
+  const getIconPath = (title) => {
+    const iconCount = 10;
+    let sum = 0;
+    for (let i = 0; i < title.length; i++) sum += title.charCodeAt(i);
+    const index = (sum % iconCount) + 1;
+    return `/icons/${index}.png`;
+  };
+
   return (
     <div className="min-h-screen bg-[#1a1a1a] text-white p-6">
       <audio ref={audioRef} hidden />
@@ -324,13 +359,11 @@ export default function STYPlayer() {
         </div>
       )}
 
-      <style>
-        {`
-          .glow {
-            box-shadow: 0 0 8px 3px currentColor;
-          }
-        `}
-      </style>
+      <style>{`
+        .glow {
+          box-shadow: 0 0 8px 3px currentColor;
+        }
+      `}</style>
     </div>
   );
 }
