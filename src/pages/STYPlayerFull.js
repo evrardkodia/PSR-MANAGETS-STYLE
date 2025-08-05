@@ -352,7 +352,7 @@ export default function STYPlayer() {
 
       {/* Contrôles et infos du beat sélectionné */}
       {selectedBeat && (
-        <div className="bg-[#2a2a2a] p-4 rounded-xl text-center space-y-3 max-w-5xl mx-auto">
+        <div className="bg-[#2a2a2a] p-4 rounded-xl text-center space-y-3 max-w-9xl mx-auto">
           <h2 className="text-xl font-semibold">{selectedBeat.title}</h2>
           <p className="text-gray-400">Tempo : {selectedBeat.tempo} BPM</p>
           <p className="text-gray-400">Signature : {selectedBeat.signature}</p>
