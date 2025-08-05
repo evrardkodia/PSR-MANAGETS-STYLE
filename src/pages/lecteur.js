@@ -23,6 +23,8 @@ const buttonStyle = {
   height: '1.5cm',
   userSelect: 'none',
   whiteSpace: 'nowrap',
+  fontSize: '8px', // Ajouté pour réduire la taille du texte
+  fontFamily: 'Arial, sans-serif', // Pour uniformiser avec les autres labels
 };
 
 export default function STYPlayerFull() {
