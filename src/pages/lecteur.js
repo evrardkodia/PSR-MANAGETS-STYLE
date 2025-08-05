@@ -147,7 +147,7 @@ export default function STYPlayerFull() {
       alignItems: 'center',
       margin: '10px 0 4px 0',
       color: 'white',
-      fontSize: '8px',
+      fontSize: '18px',
       fontFamily: 'Arial, sans-serif',
     }}>
       <div style={{ flex: 1, height: '1px', backgroundColor: '#aaa' }} />
@@ -157,7 +157,7 @@ export default function STYPlayerFull() {
   );
 
   const buttonData = [
-    { label: '', content: '', style: { width: '1cm', height: '1.5cm' } }, // ACMP remonté
+    { label: '', content: 'ACMP', style: { width: '1cm', height: '1.5cm' } },
     sectionHeader('INTRO'),
     { label: '', content: 'I' },
     { label: '', content: 'II' },
