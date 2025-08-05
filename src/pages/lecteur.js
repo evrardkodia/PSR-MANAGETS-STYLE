@@ -22,15 +22,21 @@ const buttonStyle = {
   width: '1.25cm',
   height: '1.5cm',
   userSelect: 'none',
-  whiteSpace: 'nowrap',
   fontSize: '8px',
   fontFamily: 'Arial, sans-serif',
 };
 
-const labelStyle = {
-  fontSize: '8px',
-  fontFamily: 'Arial, sans-serif',
-  marginBottom: 2,
+const playButtonStyle = {
+  backgroundColor: 'white',
+  width: '1.5cm',
+  height: '1.5cm',
+  border: 'none',
+  borderRadius: '4px',
+  cursor: 'pointer',
+  fontSize: '1cm',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
 };
 
 export default function STYPlayerFull() {
@@ -135,18 +141,43 @@ export default function STYPlayerFull() {
     display: 'inline-block',
   };
 
-  return (
-    <div
-      style={{
-        padding: '20px',
-        color: '#eee',
-        fontFamily: 'Arial, sans-serif',
-        backgroundColor: '#1e1e1e',
-        minHeight: '100vh',
-      }}
-    >
-      <h2 style={{ marginBottom: 16 }}>Liste des Beats</h2>
+  const sectionHeader = (label) => (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      margin: '10px 0 4px 0',
+      color: 'white',
+      fontSize: '8px',
+      fontFamily: 'Arial, sans-serif',
+    }}>
+      <div style={{ flex: 1, height: '1px', backgroundColor: '#aaa' }} />
+      <div style={{ padding: '0 8px' }}>{label}</div>
+      <div style={{ flex: 1, height: '1px', backgroundColor: '#aaa' }} />
+    </div>
+  );
 
+  const buttonData = [
+    { label: '', content: '', style: { width: '1cm', height: '1.5cm', marginTop: '1.5cm' } }, // ACMP
+    sectionHeader('INTRO'),
+    { label: '', content: 'I' },
+    { label: '', content: 'II' },
+    { label: '', content: 'III' },
+    { label: '', content: 'IV' },
+    sectionHeader('MAIN CONTROL'),
+    { label: '', content: 'A' },
+    { label: '', content: 'B' },
+    { label: '', content: 'C' },
+    { label: '', content: 'D' },
+    sectionHeader('ENDING'),
+    { label: '', content: 'I' },
+    { label: '', content: 'II' },
+    { label: '', content: 'III' },
+    { label: '', content: 'IV' },
+  ];
+
+  return (
+    <div style={{ padding: '20px', color: '#eee', fontFamily: 'Arial, sans-serif', backgroundColor: '#1e1e1e', minHeight: '100vh' }}>
+      <h2 style={{ marginBottom: 16 }}>Liste des Beats</h2>
       <div style={{ display: 'flex', gap: 24, justifyContent: 'center', marginBottom: 30 }}>
         {[leftColumn, rightColumn].map((column, i) => (
           <ul key={i} style={{ listStyle: 'none', padding: 0, margin: 0, flex: '1 1 0', maxWidth: 300 }}>
@@ -190,30 +221,32 @@ export default function STYPlayerFull() {
             justifyContent: 'center',
             gap: '12px',
             overflowX: 'auto',
+            flexWrap: 'wrap',
           }}
         >
-          {[ 'ACMP', 'INTRO A', 'INTRO B', 'INTRO C', 'INTRO D', 'MAIN A', 'MAIN B', 'MAIN C', 'MAIN D', 'ENDING A', 'ENDING B', 'ENDING C', 'ENDING D' ].map((name) => (
-            <div key={name} style={{ textAlign: 'center', margin: '0 6px', flex: '0 0 auto' }}>
-              <div style={labelStyle}>{name}</div>
-              <div style={ledsStyle}></div>
-              <button style={buttonStyle}>{name}</button>
-            </div>
-          ))}
+          {buttonData.map((btn, i) =>
+            typeof btn === 'object' ? (
+              <div key={i} style={{ textAlign: 'center', margin: '0 6px', flex: '0 0 auto' }}>
+                <div style={ledsStyle}></div>
+                <button style={{ ...buttonStyle, ...btn.style }}>{btn.content}</button>
+              </div>
+            ) : (
+              <div key={i} style={{ width: '100%' }}>{btn}</div>
+            )
+          )}
 
           <div style={{ textAlign: 'center', margin: '0 6px', flex: '0 0 auto' }}>
-            <div style={labelStyle}>PLAY</div>
             <div style={ledsStyle}></div>
             <button
               onClick={togglePlay}
-              style={{ ...buttonStyle, width: '100px', backgroundColor: isPlaying ? '#fa3' : '#f60' }}
+              style={playButtonStyle}
               disabled={isLoading}
             >
-              {isLoading ? 'Chargement...' : isPlaying ? 'STOP' : 'PLAY'}
+              {isLoading ? '...' : isPlaying ? '❚❚' : '▶'}
             </button>
           </div>
 
           <div style={{ textAlign: 'center', margin: '0 6px', flex: '0 0 auto' }}>
-            <div style={labelStyle}>FERMER</div>
             <div style={{ width: '12px', height: '12px', marginBottom: '6px' }}></div>
             <button
               onClick={() => {
