@@ -22,7 +22,7 @@ const buttonStyle = {
   width: '1.25cm',
   height: '1.5cm',
   userSelect: 'none',
-  fontSize: '8px',
+  fontSize: '18px',
   fontFamily: 'Arial, sans-serif',
 };
 
@@ -157,7 +157,7 @@ export default function STYPlayerFull() {
   );
 
   const buttonData = [
-    { label: '', content: '', style: { width: '1cm', height: '1.5cm', marginTop: '1.5cm' } }, // ACMP
+    { label: '', content: '', style: { width: '1cm', height: '1.5cm' } }, // ACMP remonté
     sectionHeader('INTRO'),
     { label: '', content: 'I' },
     { label: '', content: 'II' },
