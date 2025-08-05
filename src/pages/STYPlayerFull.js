@@ -18,7 +18,7 @@ export default function STYPlayer() {
   const [mainBlinking, setMainBlinking] = useState(null);
   const [playColor, setPlayColor] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [wavUrl, setWavUrl] = useState(null);
+  const [wavUrl, setWavUrl] = useState(null); // conservé pour info/diagnostic
 
   const playTimerRef = useRef(null);
   const blinkStepIndex = useRef(0);
@@ -91,7 +91,7 @@ export default function STYPlayer() {
     setIsLoading(true);
     setSelectedBeat(beat);
 
-    // Reset controls à état initial sauf beat sélectionné
+    // Reset controls à état initial
     setControls({
       acmp: false,
       autofill: false,
@@ -127,7 +127,7 @@ export default function STYPlayer() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (response.data.wavUrl) {
-        setWavUrl(response.data.wavUrl);
+        setWavUrl(response.data.wavUrl); // relative (ex: /temp/...)
       } else {
         alert("❌ Erreur: fichier WAV non disponible après préparation");
       }
@@ -173,19 +173,15 @@ export default function STYPlayer() {
     setTimeout(() => setMainBlinking(null), 2000);
   };
 
-  // Toggle play/pause avec lecture WAV
+  // Toggle play/pause avec lecture WAV via l'URL renvoyée par /play-section
   const togglePlay = async () => {
     if (!selectedBeat || isLoading) {
       alert('⚠️ Aucun beat sélectionné ou chargement en cours.');
       return;
     }
-    if (!wavUrl) {
-      alert("⚠️ Le fichier audio n'est pas prêt, veuillez patienter.");
-      return;
-    }
 
+    // STOP
     if (controls.play) {
-      // Stop
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.currentTime = 0;
@@ -193,29 +189,38 @@ export default function STYPlayer() {
       setControls((prev) => ({ ...prev, play: false }));
       setPlayColor(null);
       clearTimeout(playTimerRef.current);
-    } else {
-      // Play
+      return;
+    }
+
+    // PLAY : demander au backend l'URL lisible (absolue) du WAV
+    try {
+      const token = localStorage.getItem('token');
+      const playRes = await axios.post(
+        '/api/player/play-section',
+        { beatId: selectedBeat.id, mainLetter: controls.main },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      const serverWavUrl = playRes.data?.wavUrl;
+      if (!serverWavUrl) {
+        console.error('❌ /play-section n’a pas renvoyé wavUrl');
+        alert('❌ WAV non disponible. Réessayez de préparer le main.');
+        return;
+      }
+
       if (audioRef.current) {
-        audioRef.current.src = wavUrl;
+        audioRef.current.src = serverWavUrl; // URL ABSOLUE
         audioRef.current.load();
         audioRef.current.currentTime = 0;
         audioRef.current.loop = true;
-        try {
-          // Optionnel : notifier backend du démarrage de lecture
-          const token = localStorage.getItem('token');
-          await axios.post(
-            '/api/player/play-section',
-            { beatId: selectedBeat.id, mainLetter: controls.main },
-            { headers: { Authorization: `Bearer ${token}` } }
-          );
-
-          await audioRef.current.play();
-          setControls((prev) => ({ ...prev, play: true }));
-        } catch (err) {
-          console.error('❌ Lecture audio échouée ou notification backend échouée :', err);
-          alert('❌ Impossible de lire le fichier audio');
-        }
+        await audioRef.current.play();
+        setControls((prev) => ({ ...prev, play: true }));
       }
+    } catch (err) {
+      console.error('❌ Lecture échouée:', err);
+      // Info utile en debug :
+      if (wavUrl) console.warn('Note: wavUrl (de prepare-main) était:', wavUrl);
+      alert('❌ Impossible de lire le WAV. Vérifiez que le main est préparé.');
     }
   };
 
@@ -323,7 +328,7 @@ export default function STYPlayer() {
             leftColumn.map(renderBeatCard)
           )}
         </div>
-        <div className="bg-[#2a2a2a] p-4 rounded-xl shadow-inner">
+               <div className="bg-[#2a2a2a] p-4 rounded-xl shadow-inner">
           {rightColumn.length === 0 ? (
             <p className="text-gray-400 text-center">Rien à afficher</p>
           ) : (
