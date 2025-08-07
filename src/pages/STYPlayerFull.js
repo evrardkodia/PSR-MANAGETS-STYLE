@@ -15,6 +15,9 @@ export default function STYPlayer() {
     play: false,
     disabledChannels: [11, 12, 13, 14, 15, 16],
   });
+  const [availableIntros, setAvailableIntros] = useState([]);
+  const [availableMains, setAvailableMains] = useState([]);
+  const [availableEndings, setAvailableEndings] = useState([]);
   const [mainBlinking, setMainBlinking] = useState(null);
   const [playColor, setPlayColor] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -91,7 +94,7 @@ export default function STYPlayer() {
     setIsLoading(true);
     setSelectedBeat(beat);
 
-    // Reset controls à état initial
+    // Reset controls et sections dispos
     setControls({
       acmp: false,
       autofill: false,
@@ -101,6 +104,9 @@ export default function STYPlayer() {
       play: false,
       disabledChannels: [11, 12, 13, 14, 15, 16],
     });
+    setAvailableIntros([]);
+    setAvailableMains([]);
+    setAvailableEndings([]);
     setMainBlinking(null);
     setPlayColor(null);
     clearTimeout(playTimerRef.current);
@@ -126,11 +132,18 @@ export default function STYPlayer() {
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+
       if (response.data.wavUrl) {
-        setWavUrl(response.data.wavUrl); // relative (ex: /temp/...)
+        setWavUrl(response.data.wavUrl);
       } else {
         alert("❌ Erreur: fichier WAV non disponible après préparation");
       }
+
+      // MàJ des sections disponibles
+      if (response.data.availableIntros) setAvailableIntros(response.data.availableIntros);
+      if (response.data.availableMains) setAvailableMains(response.data.availableMains);
+      if (response.data.availableEndings) setAvailableEndings(response.data.availableEndings);
+
     } catch (err) {
       console.error('❌ Préparation du beat échouée :', err);
       alert("❌ Échec de la préparation du beat");
@@ -218,7 +231,6 @@ export default function STYPlayer() {
       }
     } catch (err) {
       console.error('❌ Lecture échouée:', err);
-      // Info utile en debug :
       if (wavUrl) console.warn('Note: wavUrl (de prepare-main) était:', wavUrl);
       alert('❌ Impossible de lire le WAV. Vérifiez que le main est préparé.');
     }
@@ -227,7 +239,28 @@ export default function STYPlayer() {
   // Gère clics sur boutons
   const handleControlClick = (type, value = null) => {
     if (type === 'main') {
+      if (!availableMains.includes(value)) return; // ignore clic si désactivé
       handleChangeMain(value);
+      return;
+    }
+    if (type === 'intro') {
+      if (!availableIntros.includes(value)) return;
+      setControls((prev) => {
+        const updated = { ...prev };
+        updated.intro = prev.intro === value ? '' : value;
+        updated.ending = '';
+        return updated;
+      });
+      return;
+    }
+    if (type === 'ending') {
+      if (!availableEndings.includes(value)) return;
+      setControls((prev) => {
+        const updated = { ...prev };
+        updated.ending = prev.ending === value ? '' : value;
+        updated.intro = '';
+        return updated;
+      });
       return;
     }
     if (type === 'play') {
@@ -238,12 +271,6 @@ export default function STYPlayer() {
       const updated = { ...prev };
       if (type === 'acmp' || type === 'autofill') {
         updated[type] = !prev[type];
-      } else if (type === 'intro') {
-        updated.intro = prev.intro === value ? '' : value;
-        updated.ending = '';
-      } else if (type === 'ending') {
-        updated.ending = prev.ending === value ? '' : value;
-        updated.intro = '';
       }
       return updated;
     });
@@ -276,10 +303,13 @@ export default function STYPlayer() {
     </div>
   );
 
-  // Rendu bouton avec styles et clignotement
-  const renderButton = (type, label, isActive, onClick, isBlinking = false) => {
+  // Rendu bouton avec styles, clignotement et gestion disabled
+  const renderButton = (type, label, isActive, onClick, isBlinking = false, disabled = false) => {
     let colorClass = 'bg-transparent';
-    if (type === 'acmp' || type === 'autofill') {
+
+    if (disabled) {
+      colorClass = 'bg-black'; // voyant noir + disabled
+    } else if (type === 'acmp' || type === 'autofill') {
       colorClass = isActive ? 'bg-orange-400 glow' : 'bg-black';
     } else if (type === 'main') {
       colorClass = isBlinking ? 'animate-orange-blue-blink' : isActive ? 'bg-blue-500 glow' : 'bg-orange-400';
@@ -288,12 +318,15 @@ export default function STYPlayer() {
     }
 
     return (
-      <div onClick={onClick} className="flex flex-col items-center cursor-pointer select-none">
+      <div
+        onClick={disabled ? undefined : onClick}
+        className={`flex flex-col items-center select-none ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+      >
         <div className={`w-8 h-2 mb-1 rounded-sm transition-all duration-300 ${colorClass}`} />
         <button
-          className="text-white bg-[#333] w-16 h-[60px] rounded-md font-bold"
+          className="text-white bg-[#333] w-16 h-[60px] rounded-md font-bold disabled:opacity-50"
           style={{ fontSize: type === 'main' ? '1.2rem' : '0.65rem' }}
-          disabled={isLoading && type === 'play'}
+          disabled={disabled || (isLoading && type === 'play')}
         >
           {label}
         </button>
@@ -328,7 +361,7 @@ export default function STYPlayer() {
             leftColumn.map(renderBeatCard)
           )}
         </div>
-               <div className="bg-[#2a2a2a] p-4 rounded-xl shadow-inner">
+        <div className="bg-[#2a2a2a] p-4 rounded-xl shadow-inner">
           {rightColumn.length === 0 ? (
             <p className="text-gray-400 text-center">Rien à afficher</p>
           ) : (
@@ -367,18 +400,48 @@ export default function STYPlayer() {
           <div className="flex flex-nowrap overflow-x-auto justify-center gap-2 mt-6 bg-[#1c1c1c] p-3 rounded-lg">
             {renderButton('acmp', 'ACMP', controls.acmp, () => handleControlClick('acmp'))}
             {renderButton('autofill', 'AUTO-FILL', controls.autofill, () => handleControlClick('autofill'))}
+
+            {/* INTRO */}
             {['A', 'B', 'C', 'D'].map((i) =>
-              renderButton('intro', `INTRO ${i}`, controls.intro === i, () => handleControlClick('intro', i))
+              renderButton(
+                'intro',
+                `INTRO ${i}`,
+                controls.intro === i,
+                () => handleControlClick('intro', i),
+                false,
+                !availableIntros.includes(i)
+              )
             )}
+
+            {/* MAIN */}
             {['A', 'B', 'C', 'D'].map((m) =>
-              renderButton('main', m, controls.main === m, () => handleControlClick('main', m), mainBlinking === m)
+              renderButton(
+                'main',
+                m,
+                controls.main === m,
+                () => handleControlClick('main', m),
+                mainBlinking === m,
+                !availableMains.includes(m)
+              )
             )}
-            {['A', 'B', 'C', 'D'].map((i) =>
-              renderButton('ending', `END ${i}`, controls.ending === i, () => handleControlClick('ending', i))
+
+            {/* ENDING */}
+            {['A', 'B', 'C', 'D'].map((e) =>
+              renderButton(
+                'ending',
+                `END ${e}`,
+                controls.ending === e,
+                () => handleControlClick('ending', e),
+                false,
+                !availableEndings.includes(e)
+              )
             )}
 
             {/* Bouton play */}
-            <div className="flex flex-col items-center cursor-pointer" onClick={() => handleControlClick('play')}>
+            <div
+              className="flex flex-col items-center cursor-pointer"
+              onClick={() => handleControlClick('play')}
+            >
               <div
                 className={`w-8 h-2 mb-1 rounded-sm ${
                   playColor === 'blue'
