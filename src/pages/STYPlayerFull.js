@@ -96,74 +96,82 @@ export default function STYPlayer() {
   const sectionWavUrl = (sectionName) => availableSections[sectionName] || null;
 
   // Select beat -> call prepare-all (extract all sections + convert to wav)
-  const handleSelectBeat = async (beat) => {
-    if (isLoading) return;
-    setIsLoading(true);
-    setSelectedBeat(beat);
-    setAvailableSections({});
-    setWavUrl(null);
+  // Select beat -> call prepare-all (extract all sections + convert to wav)
+const handleSelectBeat = async (beat) => {
+  if (isLoading) return;
+  setIsLoading(true);
+  setSelectedBeat(beat);
+  setAvailableSections({}); // Reset available sections
+  setWavUrl(null);
 
-    // Reset controls
-    setControls({
-      acmp: false,
-      autofill: false,
-      intro: '',
-      main: 'A',
-      ending: '',
-      play: false,
-      disabledChannels: [11, 12, 13, 14, 15, 16],
-    });
-    setMainBlinking(null);
-    setPlayColor(null);
-    clearTimeout(playTimerRef.current);
+  // Reset controls
+  setControls({
+    acmp: false,
+    autofill: false,
+    intro: '',
+    main: 'A',
+    ending: '',
+    play: false,
+    disabledChannels: [11, 12, 13, 14, 15, 16],
+  });
+  setMainBlinking(null);
+  setPlayColor(null);
+  clearTimeout(playTimerRef.current);
 
-    // Stop audio
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      audioRef.current.removeAttribute('src');
-      audioRef.current.load();
+  // Stop audio
+  if (audioRef.current) {
+    audioRef.current.pause();
+    audioRef.current.currentTime = 0;
+    audioRef.current.removeAttribute('src');
+    audioRef.current.load();
+  }
+
+  try {
+    const token = localStorage.getItem('token');
+    // Call prepare-all: server will extract all sections and return which ones are available
+    const response = await axios.post(
+      '/api/player/prepare-all',
+      { beatId: beat.id },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    // Expect response.data.wavs with section and url
+    const wavs = response.data?.wavs || []; // Récupérer wavUrls envoyées par le backend
+    const map = {};
+    for (const item of wavs) {
+      if (item.section && item.url) {
+        // Replace spaces with underscores in the WAV URL to match naming convention
+        const sectionName = item.section;
+        const urlWithUnderscores = item.url.replace(/\s+/g, '_');
+        map[sectionName] = urlWithUnderscores;  // Mise à jour avec le bon nom
+      }
     }
 
-    try {
-      const token = localStorage.getItem('token');
-      // Call prepare-all: server will extract all sections and return which ones are available
-      const response = await axios.post(
-        '/api/player/prepare-all',
-        { beatId: beat.id },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+    console.log('🔎 Sections extraites:', JSON.stringify(map, null, 2));
+    setAvailableSections(map); // Mettre à jour les sections disponibles
 
-      // Expect response.data.wavs with section and url
-      const wavs = response.data?.wavs || []; // Récupérer wavUrls envoyées par le backend
-      const map = {};
-      for (const item of wavs) {
-        if (item.section && item.url) map[item.section] = item.url;
-      }
-      console.log('🔎 Sections extraites:', JSON.stringify(map, null, 2));
-      setAvailableSections(map);
-
-      // Choose default main: prefer A if exists otherwise first available main
-      if (map[mainName('A')]) {
-        setControls((prev) => ({ ...prev, main: 'A' }));
-        setWavUrl(map[mainName('A')]);
+    // Choisir le "Main" par défaut: préférer A, sinon choisir le premier Main disponible
+    if (map[mainName('A')]) {
+      setControls((prev) => ({ ...prev, main: 'A' }));
+      setWavUrl(map[mainName('A')]);
+    } else {
+      // Trouver le premier "Main" disponible
+      const mains = ['A', 'B', 'C', 'D'].find((m) => map[mainName(m)]);
+      if (mains) {
+        setControls((prev) => ({ ...prev, main: mains }));
+        setWavUrl(map[mainName(mains)]);
       } else {
-        // find first main available
-        const mains = ['A', 'B', 'C', 'D'].find((m) => map[mainName(m)]);
-        if (mains) {
-          setControls((prev) => ({ ...prev, main: mains }));
-          setWavUrl(map[mainName(mains)]);
-        } else {
-          setWavUrl(null);
-        }
+        setWavUrl(null);
       }
-    } catch (err) {
-      console.error('❌ Échec prepare-all :', err);
-      alert('Échec de l’extraction complète du style. Vérifie les logs serveurs.');
-    } finally {
-      setIsLoading(false);
     }
-  };
+  } catch (err) {
+    console.error('❌ Échec prepare-all :', err);
+    alert('Échec de l’extraction complète du style. Vérifie les logs serveurs.');
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 
   // Change main -> simply switch to that main if available (no re-prepare required)
   const handleChangeMain = async (newMain) => {
