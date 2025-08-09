@@ -1,4 +1,3 @@
-// src/pages/STYPlayerFull.js (ou ton fichier STYPlayer.js)
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -135,11 +134,11 @@ export default function STYPlayer() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      // Expect response.data.extracted = [{ section, wavUrl }, ...]
-      const extracted = response.data?.extracted || [];
+      // Expect response.data.wavs with section and url
+      const wavs = response.data?.wavs || []; // Récupérer wavUrls envoyées par le backend
       const map = {};
-      for (const item of extracted) {
-        if (item.section && item.wavUrl) map[item.section] = item.wavUrl;
+      for (const item of wavs) {
+        if (item.section && item.url) map[item.section] = item.url;
       }
       console.log('🔎 Sections extraites:', JSON.stringify(map, null, 2));
       setAvailableSections(map);
@@ -150,7 +149,7 @@ export default function STYPlayer() {
         setWavUrl(map[mainName('A')]);
       } else {
         // find first main available
-        const mains = ['A', 'B', 'C', 'D'].find((m) => map[mainName(m)]); 
+        const mains = ['A', 'B', 'C', 'D'].find((m) => map[mainName(m)]);
         if (mains) {
           setControls((prev) => ({ ...prev, main: mains }));
           setWavUrl(map[mainName(mains)]);
