@@ -300,7 +300,6 @@ export default function STYPlayer() {
   // renderButton now accepts disabled and renders indicator accordingly
   const renderButton = (type, label, isActive, onClick, opts = {}) => {
     const { isBlinking = false, disabled = false } = opts;
-    // indicator color: if disabled -> black, else follow previous logic
     let indicatorClass = 'bg-transparent';
     if (disabled) {
       indicatorClass = 'bg-black';
