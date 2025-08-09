@@ -17,6 +17,7 @@ export default function STYPlayer() {
   });
   const [availableSections, setAvailableSections] = useState({}); // { "Main A": "/temp/..", ... }
   const [playColor, setPlayColor] = useState(null);
+  const [mainBlinking, setMainBlinking] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [wavUrl, setWavUrl] = useState(null); // optional diagnostic
 
