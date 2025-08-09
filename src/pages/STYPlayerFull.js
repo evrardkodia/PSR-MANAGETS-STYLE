@@ -1,3 +1,4 @@
+// src/pages/STYPlayerFull.js (ou ton fichier STYPlayer.js)
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -15,21 +16,18 @@ export default function STYPlayer() {
     play: false,
     disabledChannels: [11, 12, 13, 14, 15, 16],
   });
-  const [availableIntros, setAvailableIntros] = useState([]);
-  const [availableMains, setAvailableMains] = useState([]);
-  const [availableEndings, setAvailableEndings] = useState([]);
+  const [availableSections, setAvailableSections] = useState({}); // { "Main A": "/temp/..", ... }
   const [mainBlinking, setMainBlinking] = useState(null);
   const [playColor, setPlayColor] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [wavUrl, setWavUrl] = useState(null); // conservé pour info/diagnostic
+  const [wavUrl, setWavUrl] = useState(null); // optional diagnostic
 
   const playTimerRef = useRef(null);
-  const blinkStepIndex = useRef(0);
   const audioRef = useRef(null);
   const navigate = useNavigate();
   const ITEMS_PER_PAGE = 20;
 
-  // Séquence de clignotement pour le bouton Play
+  // blink sequence (unchanged)
   const blinkSequence = [
     { color: 'blue', duration: 100 },
     { color: null, duration: 500 },
@@ -41,27 +39,28 @@ export default function STYPlayer() {
     { color: null, duration: 500 },
   ];
 
-  // Clignotement bouton Play quand en lecture
+  // Play button blinking effect
   useEffect(() => {
     if (controls.play) {
-      blinkStepIndex.current = 0;
-      const runBlink = () => {
-        const step = blinkSequence[blinkStepIndex.current];
+      let index = 0;
+      const run = () => {
+        const step = blinkSequence[index];
         setPlayColor(step.color);
         playTimerRef.current = setTimeout(() => {
-          blinkStepIndex.current = (blinkStepIndex.current + 1) % blinkSequence.length;
-          runBlink();
+          index = (index + 1) % blinkSequence.length;
+          run();
         }, step.duration);
       };
-      runBlink();
+      run();
     } else {
       clearTimeout(playTimerRef.current);
       setPlayColor(null);
     }
     return () => clearTimeout(playTimerRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [controls.play]);
 
-  // Chargement des beats au montage
+  // Load beats on mount
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -77,7 +76,7 @@ export default function STYPlayer() {
       .catch(() => navigate('/auth'));
   }, [navigate]);
 
-  // Nettoyer l'audio à la destruction du composant
+  // Cleanup audio on unmount
   useEffect(() => {
     return () => {
       if (audioRef.current) {
@@ -88,13 +87,25 @@ export default function STYPlayer() {
     };
   }, []);
 
-  // Sélection d'un beat -> déclenche préparation main + wav côté backend
+  // Helpers to construct section names
+  const introName = (letter) => `Intro ${letter}`;
+  const mainName = (letter) => `Main ${letter}`;
+  const endingName = (letter) => `Ending ${letter}`;
+  const fillName = (code) => `Fill In ${code}`; // code: AA, BB, CC, DD
+
+  // Determine enabled/disabled
+  const isSectionAvailable = (sectionName) => !!availableSections[sectionName];
+  const sectionWavUrl = (sectionName) => availableSections[sectionName] || null;
+
+  // Select beat -> call prepare-all (extract all sections + convert to wav)
   const handleSelectBeat = async (beat) => {
     if (isLoading) return;
     setIsLoading(true);
     setSelectedBeat(beat);
+    setAvailableSections({});
+    setWavUrl(null);
 
-    // Reset controls et sections dispos
+    // Reset controls
     setControls({
       acmp: false,
       autofill: false,
@@ -104,163 +115,136 @@ export default function STYPlayer() {
       play: false,
       disabledChannels: [11, 12, 13, 14, 15, 16],
     });
-    setAvailableIntros([]);
-    setAvailableMains([]);
-    setAvailableEndings([]);
     setMainBlinking(null);
     setPlayColor(null);
     clearTimeout(playTimerRef.current);
 
-    // Stop audio et reset source
+    // Stop audio
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
       audioRef.current.removeAttribute('src');
       audioRef.current.load();
     }
-    setWavUrl(null);
 
     try {
       const token = localStorage.getItem('token');
+      // Call prepare-all: server will extract all sections and return which ones are available
       const response = await axios.post(
-        '/api/player/prepare-main',
-        {
-          beatId: beat.id,
-          mainLetter: 'A',
-          acmpEnabled: false,
-          disabledChannels: [11, 12, 13, 14, 15, 16],
-        },
+        '/api/player/prepare-all',
+        { beatId: beat.id },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      if (response.data.wavUrl) {
-        setWavUrl(response.data.wavUrl);
-      } else {
-        alert("❌ Erreur: fichier WAV non disponible après préparation");
+      // Expect response.data.extracted = [{ section, wavUrl }, ...]
+      const extracted = response.data?.extracted || [];
+      const map = {};
+      for (const item of extracted) {
+        if (item.section && item.wavUrl) map[item.section] = item.wavUrl;
       }
+      console.log('🔎 Sections extraites:', JSON.stringify(map, null, 2));
+      setAvailableSections(map);
 
-      // MàJ des sections disponibles
-      if (response.data.availableIntros) setAvailableIntros(response.data.availableIntros);
-      if (response.data.availableMains) setAvailableMains(response.data.availableMains);
-      if (response.data.availableEndings) setAvailableEndings(response.data.availableEndings);
-
+      // Choose default main: prefer A if exists otherwise first available main
+      if (map[mainName('A')]) {
+        setControls((prev) => ({ ...prev, main: 'A' }));
+        setWavUrl(map[mainName('A')]);
+      } else {
+        // find first main available
+        const mains = ['A', 'B', 'C', 'D'].find((m) => map[mainName(m)]);
+        if (mains) {
+          setControls((prev) => ({ ...prev, main: mains }));
+          setWavUrl(map[mainName(mains)]);
+        } else {
+          setWavUrl(null);
+        }
+      }
     } catch (err) {
-      console.error('❌ Préparation du beat échouée :', err);
-      alert("❌ Échec de la préparation du beat");
+      console.error('❌ Échec prepare-all :', err);
+      alert('Échec de l’extraction complète du style. Vérifie les logs serveurs.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Changement de main (A,B,C,D) -> re-préparer WAV main
+  // Change main -> simply switch to that main if available (no re-prepare required)
   const handleChangeMain = async (newMain) => {
     if (isLoading || !selectedBeat) return;
+    const sName = mainName(newMain);
+    if (!isSectionAvailable(sName)) {
+      console.warn(`Main ${newMain} non disponible`);
+      return;
+    }
     setMainBlinking(newMain);
     setControls((prev) => ({ ...prev, main: newMain }));
+    setWavUrl(sectionWavUrl(sName));
 
-    setIsLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.post(
-        '/api/player/prepare-main',
-        {
-          beatId: selectedBeat.id,
-          mainLetter: newMain,
-          acmpEnabled: controls.acmp,
-          disabledChannels: controls.disabledChannels,
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (response.data.wavUrl) {
-        setWavUrl(response.data.wavUrl);
-      } else {
-        alert("❌ Erreur: fichier WAV non disponible après préparation");
-      }
-    } catch (err) {
-      console.error('❌ Préparation main échouée :', err);
-      alert("❌ Échec de la préparation du main");
-    } finally {
-      setIsLoading(false);
-    }
-
-    setTimeout(() => setMainBlinking(null), 2000);
+    setTimeout(() => setMainBlinking(null), 1200);
   };
 
-  // Toggle play/pause avec lecture WAV via l'URL renvoyée par /play-section
+  // Play / stop using server play-section (keeps current behavior)
   const togglePlay = async () => {
     if (!selectedBeat || isLoading) {
       alert('⚠️ Aucun beat sélectionné ou chargement en cours.');
       return;
     }
 
-    // STOP
     if (controls.play) {
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.currentTime = 0;
       }
-      setControls((prev) => ({ ...prev, play: false }));
+      setControls((p) => ({ ...p, play: false }));
       setPlayColor(null);
       clearTimeout(playTimerRef.current);
       return;
     }
 
-    // PLAY : demander au backend l'URL lisible (absolue) du WAV
+    // Ensure the section is available before asking server to play
+    const chosenMain = controls.main;
+    const section = mainName(chosenMain);
+    const token = localStorage.getItem('token');
+
+    if (!isSectionAvailable(section)) {
+      alert(`🎯 Le main ${chosenMain} n'est pas disponible. Sélectionne-en un autre.`);
+      return;
+    }
+
     try {
-      const token = localStorage.getItem('token');
       const playRes = await axios.post(
         '/api/player/play-section',
-        { beatId: selectedBeat.id, mainLetter: controls.main },
+        { beatId: selectedBeat.id, mainLetter: chosenMain },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-
-      const serverWavUrl = playRes.data?.wavUrl;
+      const serverWavUrl = playRes.data?.wavUrl || sectionWavUrl(section);
       if (!serverWavUrl) {
-        console.error('❌ /play-section n’a pas renvoyé wavUrl');
-        alert('❌ WAV non disponible. Réessayez de préparer le main.');
+        alert('❌ WAV non disponible pour lecture.');
         return;
       }
 
       if (audioRef.current) {
-        audioRef.current.src = serverWavUrl; // URL ABSOLUE
+        audioRef.current.src = serverWavUrl;
         audioRef.current.load();
         audioRef.current.currentTime = 0;
         audioRef.current.loop = true;
-        await audioRef.current.play();
-        setControls((prev) => ({ ...prev, play: true }));
+        try {
+          await audioRef.current.play();
+          setControls((p) => ({ ...p, play: true }));
+        } catch (err) {
+          console.error('❌ audio play error', err);
+          alert('Impossible de lancer la lecture audio.');
+        }
       }
     } catch (err) {
-      console.error('❌ Lecture échouée:', err);
-      if (wavUrl) console.warn('Note: wavUrl (de prepare-main) était:', wavUrl);
-      alert('❌ Impossible de lire le WAV. Vérifiez que le main est préparé.');
+      console.error('❌ /play-section failed', err);
+      alert('Erreur lecture section. Vérifie le backend.');
     }
   };
 
-  // Gère clics sur boutons
+  // Control click handler
   const handleControlClick = (type, value = null) => {
     if (type === 'main') {
-      if (!availableMains.includes(value)) return; // ignore clic si désactivé
       handleChangeMain(value);
-      return;
-    }
-    if (type === 'intro') {
-      if (!availableIntros.includes(value)) return;
-      setControls((prev) => {
-        const updated = { ...prev };
-        updated.intro = prev.intro === value ? '' : value;
-        updated.ending = '';
-        return updated;
-      });
-      return;
-    }
-    if (type === 'ending') {
-      if (!availableEndings.includes(value)) return;
-      setControls((prev) => {
-        const updated = { ...prev };
-        updated.ending = prev.ending === value ? '' : value;
-        updated.intro = '';
-        return updated;
-      });
       return;
     }
     if (type === 'play') {
@@ -271,17 +255,27 @@ export default function STYPlayer() {
       const updated = { ...prev };
       if (type === 'acmp' || type === 'autofill') {
         updated[type] = !prev[type];
+      } else if (type === 'intro') {
+        // toggle intro only if available
+        const name = introName(value);
+        if (!isSectionAvailable(name)) return prev;
+        updated.intro = prev.intro === value ? '' : value;
+        updated.ending = '';
+      } else if (type === 'ending') {
+        const name = endingName(value);
+        if (!isSectionAvailable(name)) return prev;
+        updated.ending = prev.ending === value ? '' : value;
+        updated.intro = '';
       }
       return updated;
     });
   };
 
-  // Pagination
+  // Helpers for rendering
   const currentPageBeats = beats.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
   const leftColumn = currentPageBeats.slice(0, 10);
   const rightColumn = currentPageBeats.slice(10, 20);
 
-  // Rendu carte beat
   const renderBeatCard = (beat) => (
     <div
       key={beat.id}
@@ -303,30 +297,30 @@ export default function STYPlayer() {
     </div>
   );
 
-  // Rendu bouton avec styles, clignotement et gestion disabled
-  const renderButton = (type, label, isActive, onClick, isBlinking = false, disabled = false) => {
-    let colorClass = 'bg-transparent';
-
+  // renderButton now accepts disabled and renders indicator accordingly
+  const renderButton = (type, label, isActive, onClick, opts = {}) => {
+    const { isBlinking = false, disabled = false } = opts;
+    // indicator color: if disabled -> black, else follow previous logic
+    let indicatorClass = 'bg-transparent';
     if (disabled) {
-      colorClass = 'bg-black'; // voyant noir + disabled
+      indicatorClass = 'bg-black';
     } else if (type === 'acmp' || type === 'autofill') {
-      colorClass = isActive ? 'bg-orange-400 glow' : 'bg-black';
+      indicatorClass = isActive ? 'bg-orange-400 glow' : 'bg-black';
     } else if (type === 'main') {
-      colorClass = isBlinking ? 'animate-orange-blue-blink' : isActive ? 'bg-blue-500 glow' : 'bg-orange-400';
+      indicatorClass = isBlinking ? 'animate-orange-blue-blink' : isActive ? 'bg-blue-500 glow' : 'bg-orange-400';
     } else {
-      colorClass = isActive ? 'bg-orange-400 glow' : 'bg-transparent';
+      indicatorClass = isActive ? 'bg-orange-400 glow' : 'bg-transparent';
     }
 
     return (
-      <div
-        onClick={disabled ? undefined : onClick}
-        className={`flex flex-col items-center select-none ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-      >
-        <div className={`w-8 h-2 mb-1 rounded-sm transition-all duration-300 ${colorClass}`} />
+      <div className="flex flex-col items-center select-none">
+        <div className={`w-8 h-2 mb-1 rounded-sm transition-all duration-300 ${indicatorClass}`} />
         <button
-          className="text-white bg-[#333] w-16 h-[60px] rounded-md font-bold disabled:opacity-50"
+          onClick={disabled ? undefined : onClick}
+          className={`text-white ${disabled ? 'bg-gray-800 opacity-60 cursor-not-allowed' : 'bg-[#333] hover:bg-gray-600'} w-16 h-[60px] rounded-md font-bold`}
           style={{ fontSize: type === 'main' ? '1.2rem' : '0.65rem' }}
           disabled={disabled || (isLoading && type === 'play')}
+          title={disabled ? 'Non disponible' : undefined}
         >
           {label}
         </button>
@@ -334,16 +328,15 @@ export default function STYPlayer() {
     );
   };
 
-  // Génère chemin icône en fonction du titre
-  const getIconPath = (title) => {
+  function getIconPath(title) {
     const iconCount = 10;
     let sum = 0;
     for (let i = 0; i < title.length; i++) sum += title.charCodeAt(i);
     const index = (sum % iconCount) + 1;
     return `/icons/${index}.png`;
-  };
+  }
 
-  // Pagination simple boutons précédent / suivant
+  // page nav
   const canGoPrev = page > 0;
   const canGoNext = (page + 1) * ITEMS_PER_PAGE < beats.length;
 
@@ -352,43 +345,23 @@ export default function STYPlayer() {
       <audio ref={audioRef} hidden />
       <h1 className="text-3xl font-bold text-center mb-4">🎧 PSR MANAGER STYLE</h1>
 
-      {/* Liste beats */}
+      {/* Beats list */}
       <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <div className="bg-[#2a2a2a] p-4 rounded-xl shadow-inner">
-          {leftColumn.length === 0 ? (
-            <p className="text-gray-400 text-center">Aucun beat disponible</p>
-          ) : (
-            leftColumn.map(renderBeatCard)
-          )}
+          {leftColumn.length === 0 ? <p className="text-gray-400 text-center">Aucun beat disponible</p> : leftColumn.map(renderBeatCard)}
         </div>
         <div className="bg-[#2a2a2a] p-4 rounded-xl shadow-inner">
-          {rightColumn.length === 0 ? (
-            <p className="text-gray-400 text-center">Rien à afficher</p>
-          ) : (
-            rightColumn.map(renderBeatCard)
-          )}
+          {rightColumn.length === 0 ? <p className="text-gray-400 text-center">Rien à afficher</p> : rightColumn.map(renderBeatCard)}
         </div>
       </div>
 
       {/* Pagination */}
       <div className="flex justify-center gap-4 mb-6">
-        <button
-          onClick={() => canGoPrev && setPage((p) => p - 1)}
-          disabled={!canGoPrev}
-          className="bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white py-2 px-4 rounded"
-        >
-          ← Précédent
-        </button>
-        <button
-          onClick={() => canGoNext && setPage((p) => p + 1)}
-          disabled={!canGoNext}
-          className="bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white py-2 px-4 rounded"
-        >
-          Suivant →
-        </button>
+        <button onClick={() => canGoPrev && setPage((p) => p - 1)} disabled={!canGoPrev} className="bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white py-2 px-4 rounded">← Précédent</button>
+        <button onClick={() => canGoNext && setPage((p) => p + 1)} disabled={!canGoNext} className="bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white py-2 px-4 rounded">Suivant →</button>
       </div>
 
-      {/* Contrôles et infos du beat sélectionné */}
+      {/* Selected beat controls */}
       {selectedBeat && (
         <div className="bg-[#2a2a2a] p-4 rounded-xl text-center space-y-3 max-w-9xl mx-auto">
           <h2 className="text-xl font-semibold">{selectedBeat.title}</h2>
@@ -396,66 +369,60 @@ export default function STYPlayer() {
           <p className="text-gray-400">Signature : {selectedBeat.signature}</p>
           <p className="text-gray-400">Description : {selectedBeat.description || 'Aucune'}</p>
 
-          {/* Boutons de contrôle */}
           <div className="flex flex-nowrap overflow-x-auto justify-center gap-2 mt-6 bg-[#1c1c1c] p-3 rounded-lg">
             {renderButton('acmp', 'ACMP', controls.acmp, () => handleControlClick('acmp'))}
             {renderButton('autofill', 'AUTO-FILL', controls.autofill, () => handleControlClick('autofill'))}
 
-            {/* INTRO */}
+            {/* Intros A-D */}
             {['A', 'B', 'C', 'D'].map((i) =>
               renderButton(
                 'intro',
                 `INTRO ${i}`,
                 controls.intro === i,
                 () => handleControlClick('intro', i),
-                false,
-                !availableIntros.includes(i)
+                { disabled: !isSectionAvailable(introName(i)) }
               )
             )}
 
-            {/* MAIN */}
+            {/* Fill In AA..DD (we keep only 4 codes) */}
+            {['AA', 'BB', 'CC', 'DD'].map((code) =>
+              renderButton(
+                'fill',
+                `FILL ${code}`,
+                false,
+                () => {
+                  // if we want to support play-of-fill later
+                },
+                { disabled: !isSectionAvailable(fillName(code)) }
+              )
+            )}
+
+            {/* Mains A-D */}
             {['A', 'B', 'C', 'D'].map((m) =>
               renderButton(
                 'main',
                 m,
                 controls.main === m,
                 () => handleControlClick('main', m),
-                mainBlinking === m,
-                !availableMains.includes(m)
+                { isBlinking: mainBlinking === m, disabled: !isSectionAvailable(mainName(m)) }
               )
             )}
 
-            {/* ENDING */}
-            {['A', 'B', 'C', 'D'].map((e) =>
+            {/* Endings A-D */}
+            {['A', 'B', 'C', 'D'].map((i) =>
               renderButton(
                 'ending',
-                `END ${e}`,
-                controls.ending === e,
-                () => handleControlClick('ending', e),
-                false,
-                !availableEndings.includes(e)
+                `END ${i}`,
+                controls.ending === i,
+                () => handleControlClick('ending', i),
+                { disabled: !isSectionAvailable(endingName(i)) }
               )
             )}
 
-            {/* Bouton play */}
-            <div
-              className="flex flex-col items-center cursor-pointer"
-              onClick={() => handleControlClick('play')}
-            >
-              <div
-                className={`w-8 h-2 mb-1 rounded-sm ${
-                  playColor === 'blue'
-                    ? 'bg-blue-500 glow'
-                    : playColor === 'orange'
-                    ? 'bg-orange-400 glow'
-                    : 'bg-black'
-                }`}
-              />
-              <button
-                className="text-[10px] bg-gray-300 hover:bg-gray-400 text-black w-16 h-[60px] rounded-md font-bold"
-                disabled={isLoading}
-                title={isLoading ? "Chargement en cours..." : controls.play ? "Arrêter la lecture" : "Lire le beat"}
-              >
+            {/* Play button */}
+            <div className="flex flex-col items-center cursor-pointer" onClick={() => handleControlClick('play')}>
+              <div className={`w-8 h-2 mb-1 rounded-sm ${playColor === 'blue' ? 'bg-blue-500 glow' : playColor === 'orange' ? 'bg-orange-400 glow' : 'bg-black'}`} />
+              <button className="text-[10px] bg-gray-300 hover:bg-gray-400 text-black w-16 h-[60px] rounded-md font-bold" disabled={isLoading} title={isLoading ? "Chargement..." : controls.play ? "Arrêter" : "Lire"}>
                 {isLoading ? '⏳' : controls.play ? '⏹ STOP' : '▶️ PLAY'}
               </button>
             </div>
@@ -464,20 +431,10 @@ export default function STYPlayer() {
       )}
 
       <style>{`
-        .glow {
-          box-shadow: 0 0 8px 3px currentColor;
-        }
-        @keyframes orangeBlueBlink {
-          0%, 100% { background-color: orange; }
-          50% { background-color: blue; }
-        }
-        .animate-orange-blue-blink {
-          animation: orangeBlueBlink 1.5s infinite;
-        }
-        /* Scroll horizontal pour boutons contrôle si overflow */
-        .flex-nowrap {
-          white-space: nowrap;
-        }
+        .glow { box-shadow: 0 0 8px 3px currentColor; }
+        @keyframes orangeBlueBlink { 0%,100% { background-color: orange } 50% { background-color: blue } }
+        .animate-orange-blue-blink { animation: orangeBlueBlink 1.5s infinite; }
+        .flex-nowrap { white-space: nowrap; }
       `}</style>
     </div>
   );
