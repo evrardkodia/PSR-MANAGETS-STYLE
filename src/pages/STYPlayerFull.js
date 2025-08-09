@@ -283,9 +283,8 @@ export default function STYPlayer() {
     <div
       key={beat.id}
       onClick={() => handleSelectBeat(beat)}
-      className={`flex items-center gap-3 cursor-pointer p-2 mb-2 rounded-md transition hover:bg-blue-700 ${
-        selectedBeat?.id === beat.id ? 'bg-blue-800' : 'bg-[#3a3a3a]'
-      }`}
+      className={`flex items-center gap-3 cursor-pointer p-2 mb-2 rounded-md transition hover:bg-blue-700 $$
+        selectedBeat?.id === beat.id ? 'bg-blue-800' : 'bg-[#3a3a3a]'}`}
       title={`Tempo: ${beat.tempo} BPM, Signature: ${beat.signature}`}
     >
       <div className="w-10 h-10 bg-white flex items-center justify-center rounded-sm">
@@ -299,132 +298,10 @@ export default function STYPlayer() {
       </div>
     </div>
   );
-
-  // renderButton now accepts disabled and renders indicator accordingly
-  const renderButton = (type, label, isActive, onClick, opts = {}) => {
-    const { isBlinking = false, disabled = false } = opts;
-    let indicatorClass = 'bg-transparent';
-    if (disabled) {
-      indicatorClass = 'bg-black';
-    } else if (type === 'acmp' || type === 'autofill') {
-      indicatorClass = isActive ? 'bg-orange-400 glow' : 'bg-black';
-    } else if (type === 'main') {
-      indicatorClass = isBlinking ? 'animate-orange-blue-blink' : isActive ? 'bg-blue-500 glow' : 'bg-orange-400';
-    } else {
-      indicatorClass = isActive ? 'bg-orange-400 glow' : 'bg-transparent';
-    }
-
-    return (
-      <div className="flex flex-col items-center select-none">
-        <div className={`w-8 h-2 mb-1 rounded-sm transition-all duration-300 ${indicatorClass}`} />
-        <button
-          onClick={disabled ? undefined : onClick}
-          className={`text-white ${disabled ? 'bg-gray-800 opacity-60 cursor-not-allowed' : 'bg-[#333] hover:bg-gray-600'} w-16 h-[60px] rounded-md font-bold`}
-          style={{ fontSize: type === 'main' ? '1.2rem' : '0.65rem' }}
-          disabled={disabled || (isLoading && type === 'play')}
-          title={disabled ? 'Non disponible' : undefined}
-        >
-          {label}
-        </button>
-      </div>
-    );
-  };
-
-  function getIconPath(title) {
-    const iconCount = 10;
-    let sum = 0;
-    for (let i = 0; i < title.length; i++) sum += title.charCodeAt(i);
-    const index = (sum % iconCount) + 1;
-    return `/icons/${index}.png`;
-  }
-
-  // page nav
-  const canGoPrev = page > 0;
-  const canGoNext = (page + 1) * ITEMS_PER_PAGE < beats.length;
-
+  
   return (
     <div className="min-h-screen bg-[#1a1a1a] text-white p-6 select-none">
-      <audio ref={audioRef} hidden />
-      <h1 className="text-3xl font-bold text-center mb-4">🎧 PSR MANAGER STYLE</h1>
-
-      {/* Beats list */}
-      <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <div className="bg-[#2a2a2a] p-4 rounded-xl shadow-inner">
-          {leftColumn.length === 0 ? <p className="text-gray-400 text-center">Aucun beat disponible</p> : leftColumn.map(renderBeatCard)}
-        </div>
-        <div className="bg-[#2a2a2a] p-4 rounded-xl shadow-inner">
-          {rightColumn.length === 0 ? <p className="text-gray-400 text-center">Rien à afficher</p> : rightColumn.map(renderBeatCard)}
-        </div>
-      </div>
-
-      {/* Pagination */}
-      <div className="flex justify-center gap-4 mb-6">
-        <button onClick={() => canGoPrev && setPage((p) => p - 1)} disabled={!canGoPrev} className="bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white py-2 px-4 rounded">← Précédent</button>
-        <button onClick={() => canGoNext && setPage((p) => p + 1)} disabled={!canGoNext} className="bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white py-2 px-4 rounded">Suivant →</button>
-      </div>
-
-      {/* Selected beat controls */}
-      {selectedBeat && (
-        <div className="bg-[#2a2a2a] p-4 rounded-xl text-center space-y-3 max-w-9xl mx-auto">
-          <h2 className="text-xl font-semibold">{selectedBeat.title}</h2>
-          <p className="text-gray-400">Tempo : {selectedBeat.tempo} BPM</p>
-          <p className="text-gray-400">Signature : {selectedBeat.signature}</p>
-          <p className="text-gray-400">Description : {selectedBeat.description || 'Aucune'}</p>
-
-          <div className="flex flex-nowrap overflow-x-auto justify-center gap-2 mt-6 bg-[#1c1c1c] p-3 rounded-lg">
-            {renderButton('acmp', 'ACMP', controls.acmp, () => handleControlClick('acmp'))}
-            {renderButton('autofill', 'AUTO-FILL', controls.autofill, () => handleControlClick('autofill'))}
-
-            {/* Intros A-D */}
-            {['A', 'B', 'C', 'D'].map((i) =>
-              renderButton(
-                'intro',
-                `INTRO ${i}`,
-                controls.intro === i,
-                () => handleControlClick('intro', i),
-                { disabled: !isSectionAvailable(introName(i)) }
-              )
-            )}
-
-            {/* Mains A-D */}
-            {['A', 'B', 'C', 'D'].map((m) =>
-              renderButton(
-                'main',
-                m,
-                controls.main === m,
-                () => handleControlClick('main', m),
-                { isBlinking: mainBlinking === m, disabled: !isSectionAvailable(mainName(m)) }
-              )
-            )}
-
-            {/* Endings A-D */}
-            {['A', 'B', 'C', 'D'].map((i) =>
-              renderButton(
-                'ending',
-                `END ${i}`,
-                controls.ending === i,
-                () => handleControlClick('ending', i),
-                { disabled: !isSectionAvailable(endingName(i)) }
-              )
-            )}
-
-            {/* Play button */}
-            <div className="flex flex-col items-center cursor-pointer" onClick={() => handleControlClick('play')}>
-              <div className={`w-8 h-2 mb-1 rounded-sm ${playColor === 'blue' ? 'bg-blue-500 glow' : playColor === 'orange' ? 'bg-orange-400 glow' : 'bg-black'}`} />
-              <button className="text-[10px] bg-gray-300 hover:bg-gray-400 text-black w-16 h-[60px] rounded-md font-bold" disabled={isLoading} title={isLoading ? "Chargement..." : controls.play ? "Arrêter" : "Lire"}>
-                {isLoading ? '⏳' : controls.play ? '⏹ STOP' : '▶️ PLAY'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <style>{`
-        .glow { box-shadow: 0 0 8px 3px currentColor; }
-        @keyframes orangeBlueBlink { 0%,100% { background-color: orange } 50% { background-color: blue } }
-        .animate-orange-blue-blink { animation: orangeBlueBlink 1.5s infinite; }
-        .flex-nowrap { white-space: nowrap; }
-      `}</style>
+      {/* ... */}
     </div>
   );
 }
