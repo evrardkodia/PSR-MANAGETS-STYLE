@@ -57,7 +57,6 @@ export default function STYPlayer() {
       setPlayColor(null);
     }
     return () => clearTimeout(playTimerRef.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [controls.play]);
 
   // Load beats on mount
@@ -151,7 +150,7 @@ export default function STYPlayer() {
         setWavUrl(map[mainName('A')]);
       } else {
         // find first main available
-        const mains = ['A', 'B', 'C', 'D'].find((m) => map[mainName(m)]);
+        const mains = ['A', 'B', 'C', 'D'].find((m) => map[mainName(m)]); 
         if (mains) {
           setControls((prev) => ({ ...prev, main: mains }));
           setWavUrl(map[mainName(mains)]);
@@ -380,19 +379,6 @@ export default function STYPlayer() {
                 controls.intro === i,
                 () => handleControlClick('intro', i),
                 { disabled: !isSectionAvailable(introName(i)) }
-              )
-            )}
-
-            {/* Fill In AA..DD (we keep only 4 codes) */}
-            {['AA', 'BB', 'CC', 'DD'].map((code) =>
-              renderButton(
-                'fill',
-                `FILL ${code}`,
-                false,
-                () => {
-                  // if we want to support play-of-fill later
-                },
-                { disabled: !isSectionAvailable(fillName(code)) }
               )
             )}
 
