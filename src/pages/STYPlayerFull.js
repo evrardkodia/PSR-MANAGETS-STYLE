@@ -25,6 +25,63 @@ export default function STYPlayer() {
   const audioRef = useRef(null);
   const navigate = useNavigate();
   const ITEMS_PER_PAGE = 20;
+  const [tempFiles, setTempFiles] = useState([]);
+
+  // ---------------------------
+  // Integration CODE A (temp)
+  // ---------------------------
+  const fetchTempFiles = async () => {
+    if (!selectedBeat) {
+      setTempFiles([]);
+      return;
+    }
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get('/api/player/list-temps', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      // expected res.data.files = array of filenames in /temp
+      setTempFiles(Array.isArray(res.data.files) ? res.data.files : []);
+    } catch (err) {
+      console.warn('Impossible de récupérer la liste des fichiers temp', err);
+      setTempFiles([]);
+    }
+  };
+
+  // Récupérer la liste des fichiers dans /temp dès que selectedBeat change
+  useEffect(() => {
+    if (!selectedBeat) {
+      setTempFiles([]);
+      return;
+    }
+    fetchTempFiles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBeat]);
+
+  // Génère nom exact
+  const getFileName = (section, subsection) => {
+    if (!selectedBeat) return null;
+    return `${selectedBeat.id}_${section}_${subsection}.wav`;
+  };
+
+  // Exemple : récupérer le wavUrl du main actif si présent dans tempFiles
+  const getWavUrlForMain = (mainLetter) => {
+    const fileName = getFileName('Main', mainLetter);
+    if (!fileName) return null;
+    if (tempFiles.includes(fileName)) {
+      return `/temp/${fileName}`; // chemin accessible depuis frontend
+    }
+    return null; // pas de fichier dispo
+  };
+
+  // Dès que main ou tempFiles changent, on met à jour wavUrl (si un fichier est dispo)
+  useEffect(() => {
+    const url = getWavUrlForMain(controls.main);
+    if (url) {
+      setWavUrl(url);
+    }
+    // si url est null, on ne lève pas wavUrl à null pour éviter d'écraser une préparation côté backend
+  }, [controls.main, tempFiles]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Séquence de clignotement pour le bouton Play
   const blinkSequence = [
@@ -129,8 +186,12 @@ export default function STYPlayer() {
       if (response.data.wavUrl) {
         setWavUrl(response.data.wavUrl);
       } else {
+        // pas de wavUrl renvoyé par l'API, mais on va quand même rafraîchir la liste temp
         alert("❌ Erreur: fichier WAV non disponible après préparation");
       }
+
+      // Rafraîchir la liste des fichiers temp (au cas où backend a créé les .wav)
+      await fetchTempFiles();
     } catch (err) {
       console.error('❌ Préparation du beat échouée :', err);
       alert("❌ Échec de la préparation du beat");
@@ -142,8 +203,18 @@ export default function STYPlayer() {
   // Changement de main (A,B,C,D) -> re-préparer WAV main
   const handleChangeMain = async (newMain) => {
     if (isLoading || !selectedBeat) return;
+
+    // Si le fichier existe déjà dans /temp, on évite l'appel API (optimisation)
+    const existingUrl = getWavUrlForMain(newMain);
     setMainBlinking(newMain);
     setControls((prev) => ({ ...prev, main: newMain }));
+
+    if (existingUrl) {
+      // Le fichier est déjà disponible; on l'utilise directement
+      setWavUrl(existingUrl);
+      setTimeout(() => setMainBlinking(null), 2000);
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -163,6 +234,9 @@ export default function STYPlayer() {
       } else {
         alert("❌ Erreur: fichier WAV non disponible après préparation");
       }
+
+      // Rafraîchir la liste des fichiers temp après préparation
+      await fetchTempFiles();
     } catch (err) {
       console.error('❌ Préparation main échouée :', err);
       alert("❌ Échec de la préparation du main");
