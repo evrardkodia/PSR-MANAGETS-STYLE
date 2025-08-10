@@ -117,7 +117,7 @@ export default function STYPlayer() {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(
-        '/api/player/prepare-main',
+        '/api/player/prepare-all',
         {
           beatId: beat.id,
           mainLetter: 'A',
