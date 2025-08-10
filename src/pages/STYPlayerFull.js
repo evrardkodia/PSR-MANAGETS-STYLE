@@ -19,8 +19,8 @@ export default function STYPlayer() {
   const [playColor, setPlayColor] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [wavUrl, setWavUrl] = useState(null);
+  // Initialement toutes les sections désactivées et voyants éteints
   const [sectionsAvailability, setSectionsAvailability] = useState({
-    // Initialement tout désactivé et voyants éteints
     "Intro A": 0, "Intro B": 0, "Intro C": 0, "Intro D": 0,
     "Fill In AA": 0, "Fill In BB": 0, "Fill In CC": 0, "Fill In DD": 0,
     "Main A": 0, "Main B": 0, "Main C": 0, "Main D": 0,
@@ -93,7 +93,6 @@ export default function STYPlayer() {
     setIsLoading(true);
     setSelectedBeat(beat);
 
-    // Reset contrôles et états
     setControls({
       acmp: false,
       autofill: false,
@@ -115,7 +114,6 @@ export default function STYPlayer() {
     }
     setWavUrl(null);
 
-    // Désactiver toutes les sections en attendant la réponse
     setSectionsAvailability({
       "Intro A": 0, "Intro B": 0, "Intro C": 0, "Intro D": 0,
       "Fill In AA": 0, "Fill In BB": 0, "Fill In CC": 0, "Fill In DD": 0,
@@ -125,6 +123,7 @@ export default function STYPlayer() {
 
     try {
       const token = localStorage.getItem('token');
+      // Appel à /api/player/prepare-main qui utilise extract_sections.py côté backend
       const response = await axios.post(
         '/api/player/prepare-main',
         {
@@ -135,6 +134,9 @@ export default function STYPlayer() {
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+
+      // LOG pour prouver la réception du JSON envoyé par extract_sections.py
+      console.log("🎯 JSON reçu de extract_sections.py :", response.data.sections);
 
       if (response.data.sections) {
         setSectionsAvailability(response.data.sections);
@@ -152,7 +154,7 @@ export default function STYPlayer() {
     }
   };
 
-  // Le changement de main ne déclenche plus de requête, seulement update localement
+  // Changement de main local uniquement, pas de requête
   const handleChangeMain = (newMain) => {
     if (isLoading || !selectedBeat) return;
     setMainBlinking(newMain);
@@ -186,10 +188,6 @@ export default function STYPlayer() {
         audioRef.current.loop = true;
 
         try {
-          const token = localStorage.getItem('token');
-          // Pas nécessaire d'appeler play-section ici car la préparation a déjà eu lieu
-          // await axios.post('/api/player/play-section', { beatId: selectedBeat.id, mainLetter: controls.main }, { headers: { Authorization: `Bearer ${token}` } });
-
           await audioRef.current.play();
           setControls((prev) => ({ ...prev, play: true }));
         } catch (err) {
@@ -361,6 +359,7 @@ export default function STYPlayer() {
             {renderButton('autofill', 'AUTO-FILL', controls.autofill, () => handleControlClick('autofill'))}
 
             {['A', 'B', 'C', 'D'].map((i) => {
+              // Activation basée sur JSON reçu exact, par ex. "Intro A"
               const enabled = sectionsAvailability[`Intro ${i}`] === 1;
               return renderButton(
                 'intro',
