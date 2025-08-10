@@ -96,69 +96,79 @@ export default function STYPlayer() {
   const sectionWavUrl = (sectionName) => availableSections[sectionName] || null;
 
   // Select beat -> call prepare-all (extract all sections + convert to wav)
-  const handleSelectBeat = async (beat) => {
-    if (isLoading) return;
-    setIsLoading(true);
-    setSelectedBeat(beat);
-    setAvailableSections({}); // Reset available sections
-    setWavUrl(null);
+  // Mise à jour de availableSections et de l'état des boutons
+const handleSelectBeat = async (beat) => {
+  if (isLoading) return;
+  setIsLoading(true);
+  setSelectedBeat(beat);
+  setAvailableSections({}); // Réinitialiser les sections disponibles
+  setWavUrl(null);
 
-    // Reset controls
-    setControls({
-      acmp: false,
-      autofill: false,
-      intro: '',
-      main: 'A',
-      ending: '',
-      play: false,
-      disabledChannels: [11, 12, 13, 14, 15, 16],
+  // Réinitialiser les contrôles
+  setControls({
+    acmp: false,
+    autofill: false,
+    intro: '',
+    main: 'A',
+    ending: '',
+    play: false,
+    disabledChannels: [11, 12, 13, 14, 15, 16],
+  });
+  clearTimeout(playTimerRef.current);
+
+  // Stopper l'audio
+  if (audioRef.current) {
+    audioRef.current.pause();
+    audioRef.current.currentTime = 0;
+    audioRef.current.removeAttribute('src');
+    audioRef.current.load();
+  }
+
+  try {
+    const token = localStorage.getItem('token');
+    // Appel de prepare-all pour obtenir les sections disponibles
+    const response = await axios.post(
+      '/api/player/prepare-all',
+      { beatId: beat.id },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    // Traiter la réponse
+    const sectionStatus = response.data?.sectionsState || {}; // État des sections
+    const wavUrls = response.data?.wavs || []; // URLs des WAVs
+    const map = {};
+
+    // Mise à jour des sections disponibles
+    wavUrls.forEach(({ section, url }) => {
+      map[section] = url; // On assigne l'URL du fichier WAV à chaque section
     });
-    clearTimeout(playTimerRef.current);
 
-    // Stop audio
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      audioRef.current.removeAttribute('src');
-      audioRef.current.load();
+    setAvailableSections(map); // Mise à jour des sections avec les URLs
+
+    // Choisir le "Main" par défaut
+    const availableMain = ['A', 'B', 'C', 'D'].find((m) => map[mainName(m)]);
+    if (availableMain) {
+      setControls((prev) => ({ ...prev, main: availableMain }));
+      setWavUrl(map[mainName(availableMain)]);
+    } else {
+      setWavUrl(null);
     }
 
-    try {
-      const token = localStorage.getItem('token');
-      // Call prepare-all: server will extract all sections and return which ones are available
-      const response = await axios.post(
-        '/api/player/prepare-all',
-        { beatId: beat.id },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+    // Mettre à jour l'activation des boutons
+    setControls((prev) => ({
+      ...prev,
+      intro: sectionStatus[`Intro A`] ? 'A' : '',
+      main: availableMain || 'A',
+      ending: sectionStatus[`Ending A`] ? 'A' : '',
+    }));
+  } catch (err) {
+    console.error('❌ Échec prepare-all :', err);
+    alert('Échec de l’extraction complète du style. Vérifie les logs serveurs.');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
-      // Process the sections response (0 or 1 for availability)
-      const sectionStatus = response.data?.sections || {};
-      const map = {};
-
-      for (const section in sectionStatus) {
-        if (sectionStatus[section] === 1) {
-          map[section] = `/temp/${beat.id}_${section.replace(/\s+/g, '_')}.wav`; // Correct URL format
-        }
-      }
-
-      setAvailableSections(map); // Update available sections
-
-      // Choose the "Main" by default: prefer A, otherwise choose the first available Main
-      const availableMain = ['A', 'B', 'C', 'D'].find((m) => map[mainName(m)]);
-      if (availableMain) {
-        setControls((prev) => ({ ...prev, main: availableMain }));
-        setWavUrl(map[mainName(availableMain)]);
-      } else {
-        setWavUrl(null);
-      }
-    } catch (err) {
-      console.error('❌ Échec prepare-all :', err);
-      alert('Échec de l’extraction complète du style. Vérifie les logs serveurs.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   // Change main -> simply switch to that main if available (no re-prepare required)
   const handleChangeMain = (value) => {
@@ -281,34 +291,37 @@ export default function STYPlayer() {
   );
 
   // renderButton now accepts disabled and renders indicator accordingly
-  const renderButton = (type, label, isActive, onClick, opts = {}) => {
-    const { isBlinking = false, disabled = false } = opts;
-    let indicatorClass = 'bg-transparent';
-    if (disabled) {
-      indicatorClass = 'bg-black';
-    } else if (type === 'acmp' || type === 'autofill') {
-      indicatorClass = isActive ? 'bg-orange-400 glow' : 'bg-black';
-    } else if (type === 'main') {
-      indicatorClass = isBlinking ? 'animate-orange-blue-blink' : isActive ? 'bg-blue-500 glow' : 'bg-orange-400';
-    } else {
-      indicatorClass = isActive ? 'bg-orange-400 glow' : 'bg-transparent';
-    }
+const renderButton = (type, label, isActive, onClick, opts = {}) => {
+  const { isBlinking = false, disabled = false } = opts;
+  let indicatorClass = 'bg-transparent';
 
-    return (
-      <div className="flex flex-col items-center select-none">
-        <div className={`w-8 h-2 mb-1 rounded-sm transition-all duration-300 ${indicatorClass}`} />
-        <button
-          onClick={disabled ? undefined : onClick}
-          className={`text-white ${disabled ? 'bg-gray-800 opacity-60 cursor-not-allowed' : 'bg-[#333] hover:bg-gray-600'} w-16 h-[60px] rounded-md font-bold`}
-          style={{ fontSize: type === 'main' ? '1.2rem' : '0.65rem' }}
-          disabled={disabled || (isLoading && type === 'play')}
-          title={disabled ? 'Non disponible' : undefined}
-        >
-          {label}
-        </button>
-      </div>
-    );
-  };
+  // Activation / désactivation en fonction des sections disponibles
+  if (disabled) {
+    indicatorClass = 'bg-black'; // Voyant noir pour sections désactivées
+  } else if (type === 'acmp' || type === 'autofill') {
+    indicatorClass = isActive ? 'bg-orange-400 glow' : 'bg-black';
+  } else if (type === 'main') {
+    indicatorClass = isBlinking ? 'animate-orange-blue-blink' : isActive ? 'bg-blue-500 glow' : 'bg-orange-400';
+  } else {
+    indicatorClass = isActive ? 'bg-orange-400 glow' : 'bg-transparent';
+  }
+
+  return (
+    <div className="flex flex-col items-center select-none">
+      <div className={`w-8 h-2 mb-1 rounded-sm transition-all duration-300 ${indicatorClass}`} />
+      <button
+        onClick={disabled ? undefined : onClick}
+        className={`text-white ${disabled ? 'bg-gray-800 opacity-60 cursor-not-allowed' : 'bg-[#333] hover:bg-gray-600'} w-16 h-[60px] rounded-md font-bold`}
+        style={{ fontSize: type === 'main' ? '1.2rem' : '0.65rem' }}
+        disabled={disabled || (isLoading && type === 'play')}
+        title={disabled ? 'Non disponible' : undefined}
+      >
+        {label}
+      </button>
+    </div>
+  );
+};
+
 
   function getIconPath(title) {
     const iconCount = 10;
