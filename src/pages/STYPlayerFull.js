@@ -19,7 +19,13 @@ export default function STYPlayer() {
   const [playColor, setPlayColor] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [wavUrl, setWavUrl] = useState(null);
-  const [sectionsAvailability, setSectionsAvailability] = useState({}); // ✅ état des sections
+  const [sectionsAvailability, setSectionsAvailability] = useState({
+    // Initialement tout désactivé et voyants éteints
+    "Intro A": 0, "Intro B": 0, "Intro C": 0, "Intro D": 0,
+    "Fill In AA": 0, "Fill In BB": 0, "Fill In CC": 0, "Fill In DD": 0,
+    "Main A": 0, "Main B": 0, "Main C": 0, "Main D": 0,
+    "Ending A": 0, "Ending B": 0, "Ending C": 0, "Ending D": 0,
+  });
 
   const playTimerRef = useRef(null);
   const blinkStepIndex = useRef(0);
@@ -87,6 +93,7 @@ export default function STYPlayer() {
     setIsLoading(true);
     setSelectedBeat(beat);
 
+    // Reset contrôles et états
     setControls({
       acmp: false,
       autofill: false,
@@ -108,6 +115,14 @@ export default function STYPlayer() {
     }
     setWavUrl(null);
 
+    // Désactiver toutes les sections en attendant la réponse
+    setSectionsAvailability({
+      "Intro A": 0, "Intro B": 0, "Intro C": 0, "Intro D": 0,
+      "Fill In AA": 0, "Fill In BB": 0, "Fill In CC": 0, "Fill In DD": 0,
+      "Main A": 0, "Main B": 0, "Main C": 0, "Main D": 0,
+      "Ending A": 0, "Ending B": 0, "Ending C": 0, "Ending D": 0,
+    });
+
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(
@@ -122,7 +137,7 @@ export default function STYPlayer() {
       );
 
       if (response.data.sections) {
-        setSectionsAvailability(response.data.sections); // ✅ on stocke l'état des sections
+        setSectionsAvailability(response.data.sections);
       }
       if (response.data.wavUrl) {
         setWavUrl(response.data.wavUrl);
@@ -137,39 +152,11 @@ export default function STYPlayer() {
     }
   };
 
-  const handleChangeMain = async (newMain) => {
+  // Le changement de main ne déclenche plus de requête, seulement update localement
+  const handleChangeMain = (newMain) => {
     if (isLoading || !selectedBeat) return;
     setMainBlinking(newMain);
     setControls((prev) => ({ ...prev, main: newMain }));
-
-    setIsLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.post(
-        '/api/player/prepare-main',
-        {
-          beatId: selectedBeat.id,
-          mainLetter: newMain,
-          acmpEnabled: controls.acmp,
-          disabledChannels: controls.disabledChannels,
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (response.data.sections) {
-        setSectionsAvailability(response.data.sections); // ✅ on met à jour si dispo
-      }
-      if (response.data.wavUrl) {
-        setWavUrl(response.data.wavUrl);
-      } else {
-        alert("❌ Erreur: fichier WAV non disponible après préparation");
-      }
-    } catch (err) {
-      console.error('❌ Préparation main échouée :', err);
-      alert("❌ Échec de la préparation du main");
-    } finally {
-      setIsLoading(false);
-    }
-
     setTimeout(() => setMainBlinking(null), 2000);
   };
 
@@ -197,13 +184,11 @@ export default function STYPlayer() {
         audioRef.current.load();
         audioRef.current.currentTime = 0;
         audioRef.current.loop = true;
+
         try {
           const token = localStorage.getItem('token');
-          await axios.post(
-            '/api/player/play-section',
-            { beatId: selectedBeat.id, mainLetter: controls.main },
-            { headers: { Authorization: `Bearer ${token}` } }
-          );
+          // Pas nécessaire d'appeler play-section ici car la préparation a déjà eu lieu
+          // await axios.post('/api/player/play-section', { beatId: selectedBeat.id, mainLetter: controls.main }, { headers: { Authorization: `Bearer ${token}` } });
 
           await audioRef.current.play();
           setControls((prev) => ({ ...prev, play: true }));
