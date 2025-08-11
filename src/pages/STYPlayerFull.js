@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 export default function STYPlayer() {
   const [beats, setBeats] = useState([]);
   const [selectedBeat, setSelectedBeat] = useState(null);
-  const [sectionsAvailability, setSectionsAvailability] = useState({}); // <-- ajouté
+  const [sectionsAvailability, setSectionsAvailability] = useState({});
   const [page, setPage] = useState(0);
   const [controls, setControls] = useState({
     acmp: false,
@@ -25,7 +25,7 @@ export default function STYPlayer() {
   const blinkStepIndex = useRef(0);
   const audioRef = useRef(null);
   const navigate = useNavigate();
-  const ITEMS_PER_PAGE = 20;
+  const ITEMS_PER_PAGE = 10; // 5 beats per column * 2 columns = 10 total per page
 
   const blinkSequence = [
     { color: 'blue', duration: 100 },
@@ -63,8 +63,9 @@ export default function STYPlayer() {
       navigate('/auth');
       return;
     }
+    // Changement ici : on utilise "/api/beats/all" pour récupérer tous les beats
     axios
-      .get('/api/beats/me', { headers: { Authorization: `Bearer ${token}` } })
+      .get('/api/beats/all', { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => {
         const sorted = res.data.beats.sort((a, b) => a.title.localeCompare(b.title));
         setBeats(sorted);
@@ -107,7 +108,7 @@ export default function STYPlayer() {
       audioRef.current.load();
     }
     setWavUrl(null);
-    setSectionsAvailability({}); // reset sections
+    setSectionsAvailability({});
 
     try {
       const token = localStorage.getItem('token');
@@ -119,9 +120,7 @@ export default function STYPlayer() {
       );
       if (prepareAllResp.data.sections) {
         setSectionsAvailability(prepareAllResp.data.sections);
-        console.log('Sections détectées:', prepareAllResp.data.sections);
       } else {
-        console.warn('Aucune section détectée par prepare-all');
         setSectionsAvailability({});
       }
 
@@ -254,32 +253,36 @@ export default function STYPlayer() {
     });
   };
 
+  // Affichage 5 beats par colonne (5 gauche + 5 droite)
   const currentPageBeats = beats.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
-  const leftColumn = currentPageBeats.slice(0, 10);
-  const rightColumn = currentPageBeats.slice(10, 20);
+  const leftColumn = currentPageBeats.slice(0, 5);
+  const rightColumn = currentPageBeats.slice(5, 10);
 
   const renderBeatCard = (beat) => (
     <div
       key={beat.id}
       onClick={() => handleSelectBeat(beat)}
-      className={`flex items-center gap-3 cursor-pointer p-2 mb-2 rounded-md transition hover:bg-blue-700 ${
+      className={`flex items-center gap-3 cursor-pointer p-1.5 mb-1 rounded-md transition hover:bg-blue-700 ${
         selectedBeat?.id === beat.id ? 'bg-blue-800' : 'bg-[#3a3a3a]'
       }`}
       title={`Tempo: ${beat.tempo} BPM, Signature: ${beat.signature}`}
+      style={{ height: '3.2rem' /* environ 1cm */, fontSize: '0.85rem' }}
     >
-      <div className="w-10 h-10 bg-white flex items-center justify-center rounded-sm">
-        <img src={getIconPath(beat.title)} alt="icon" className="w-8 h-8 object-contain" />
+      <div className="w-8 h-8 bg-white flex items-center justify-center rounded-sm">
+        <img src={getIconPath(beat.title)} alt="icon" className="w-6 h-6 object-contain" />
       </div>
-      <div>
-        <p className="font-semibold">{beat.title}</p>
-        <p className="text-sm text-gray-400">
+      <div className="flex flex-col justify-center leading-tight overflow-hidden">
+        <p className="font-semibold truncate max-w-[160px]">{beat.title}</p>
+        <p className="text-xs text-gray-400 truncate max-w-[160px]">
           {beat.signature} - {beat.tempo} BPM
+        </p>
+        <p className="text-xs text-gray-400 truncate max-w-[160px] italic">
+          {beat.authorName || 'Auteur inconnu'}
         </p>
       </div>
     </div>
   );
 
-  // Modifié : ajout param disabled et gestion couleur/bouton disabled
   const renderButton = (type, label, isActive, onClick, isBlinking = false, disabled = false) => {
     let colorClass = 'bg-transparent';
     if (type === 'acmp' || type === 'autofill') {
@@ -328,14 +331,14 @@ export default function STYPlayer() {
       <h1 className="text-3xl font-bold text-center mb-4">🎧 PSR MANAGER STYLE</h1>
 
       <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <div className="bg-[#2a2a2a] p-4 rounded-xl shadow-inner">
+        <div className="bg-[#2a2a2a] p-4 rounded-xl shadow-inner max-h-[18rem] overflow-y-auto">
           {leftColumn.length === 0 ? (
             <p className="text-gray-400 text-center">Aucun beat disponible</p>
           ) : (
             leftColumn.map(renderBeatCard)
           )}
         </div>
-        <div className="bg-[#2a2a2a] p-4 rounded-xl shadow-inner">
+        <div className="bg-[#2a2a2a] p-4 rounded-xl shadow-inner max-h-[18rem] overflow-y-auto">
           {rightColumn.length === 0 ? (
             <p className="text-gray-400 text-center">Rien à afficher</p>
           ) : (
@@ -361,13 +364,11 @@ export default function STYPlayer() {
         </button>
       </div>
 
+      {/* Suppression de la section infos du beat sélectionné */}
+
+      {/* Section contrôles (ACMP, MAIN, ENDING, PLAY, etc.) */}
       {selectedBeat && (
         <div className="bg-[#2a2a2a] p-4 rounded-xl text-center space-y-3 max-w-9xl mx-auto">
-          <h2 className="text-xl font-semibold">{selectedBeat.title}</h2>
-          <p className="text-gray-400">Tempo : {selectedBeat.tempo} BPM</p>
-          <p className="text-gray-400">Signature : {selectedBeat.signature}</p>
-          <p className="text-gray-400">Description : {selectedBeat.description || 'Aucune'}</p>
-
           <div className="flex flex-nowrap overflow-x-auto justify-center gap-2 mt-6 bg-[#1c1c1c] p-3 rounded-lg">
             {renderButton('acmp', 'ACMP', controls.acmp, () => handleControlClick('acmp'))}
             {renderButton('autofill', 'AUTO-FILL', controls.autofill, () => handleControlClick('autofill'))}
@@ -397,7 +398,6 @@ export default function STYPlayer() {
             })}
 
             {['A', 'B', 'C', 'D'].map((i) => {
-              // On accepte aussi "End X" au cas où le backend utilise ce label
               const enabled =
                 sectionsAvailability[`Ending ${i}`] === 1 || sectionsAvailability[`End ${i}`] === 1;
               return renderButton(
