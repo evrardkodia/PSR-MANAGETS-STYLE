@@ -265,7 +265,6 @@ export default function STYPlayer() {
       className={`flex items-center gap-3 cursor-pointer p-2 mb-2 rounded-md transition hover:bg-blue-700 ${
         selectedBeat?.id === beat.id ? 'bg-blue-800' : 'bg-[#3a3a3a]'
       }`}
-      title={`Tempo: ${beat.tempo} BPM, Signature: ${beat.signature}`}
     >
       <div className="w-10 h-10 bg-white flex items-center justify-center rounded-sm">
         <img src={getIconPath(beat.title)} alt="icon" className="w-8 h-8 object-contain" />
