@@ -64,7 +64,7 @@ export default function STYPlayer() {
       return;
     }
     axios
-      .get('/api/beats/me', { headers: { Authorization: `Bearer ${token}` } })
+     .get('/api/beats', { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => {
         const sorted = res.data.beats.sort((a, b) => a.title.localeCompare(b.title));
         setBeats(sorted);
