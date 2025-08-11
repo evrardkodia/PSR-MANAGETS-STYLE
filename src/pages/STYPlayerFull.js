@@ -87,57 +87,75 @@ export default function STYPlayer() {
 
   // Sélection d'un beat -> déclenche préparation main + wav côté backend
   const handleSelectBeat = async (beat) => {
-    if (isLoading) return;
-    setIsLoading(true);
-    setSelectedBeat(beat);
+  if (isLoading) return;
+  setIsLoading(true);
+  setSelectedBeat(beat);
 
-    // Reset controls à état initial sauf beat sélectionné
-    setControls({
-      acmp: false,
-      autofill: false,
-      intro: '',
-      main: 'A',
-      ending: '',
-      play: false,
-      disabledChannels: [11, 12, 13, 14, 15, 16],
-    });
-    setMainBlinking(null);
-    setPlayColor(null);
-    clearTimeout(playTimerRef.current);
+  // Reset contrôles comme avant
+  setControls({
+    acmp: false,
+    autofill: false,
+    intro: '',
+    main: 'A',
+    ending: '',
+    play: false,
+    disabledChannels: [11, 12, 13, 14, 15, 16],
+  });
+  setMainBlinking(null);
+  setPlayColor(null);
+  clearTimeout(playTimerRef.current);
 
-    // Stop audio et reset source
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      audioRef.current.removeAttribute('src');
-      audioRef.current.load();
+  // Stop audio et reset source
+  if (audioRef.current) {
+    audioRef.current.pause();
+    audioRef.current.currentTime = 0;
+    audioRef.current.removeAttribute('src');
+    audioRef.current.load();
+  }
+  setWavUrl(null);
+
+  try {
+    const token = localStorage.getItem('token');
+
+    // 1. APPEL prepare-all pour récupérer les sections
+    const prepareAllResp = await axios.post(
+      '/api/player/prepare-all',
+      { beatId: beat.id },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (prepareAllResp.data.sections) {
+      setSections(prepareAllResp.data.sections);
+      console.log('Sections détectées:', prepareAllResp.data.sections);
+    } else {
+      console.warn('Aucune section détectée par prepare-all');
+      setSections(null);
     }
-    setWavUrl(null);
 
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.post(
-        '/api/player/prepare-main',
-        {
-          beatId: beat.id,
-          mainLetter: 'A',
-          acmpEnabled: false,
-          disabledChannels: [11, 12, 13, 14, 15, 16],
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (response.data.wavUrl) {
-        setWavUrl(response.data.wavUrl);
-      } else {
-        alert("❌ Erreur: fichier WAV non disponible après préparation");
-      }
-    } catch (err) {
-      console.error('❌ Préparation du beat échouée :', err);
-      alert("❌ Échec de la préparation du beat");
-    } finally {
-      setIsLoading(false);
+    // 2. APPEL prepare-main pour préparer la main A comme avant
+    const prepareMainResp = await axios.post(
+      '/api/player/prepare-main',
+      {
+        beatId: beat.id,
+        mainLetter: 'A',
+        acmpEnabled: false,
+        disabledChannels: [11, 12, 13, 14, 15, 16],
+      },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (prepareMainResp.data.wavUrl) {
+      setWavUrl(prepareMainResp.data.wavUrl);
+    } else {
+      alert("❌ Erreur: fichier WAV non disponible après préparation");
     }
-  };
+  } catch (err) {
+    console.error('❌ Préparation du beat échouée :', err);
+    alert("❌ Échec de la préparation du beat");
+    setSections(null);
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 
   // Changement de main (A,B,C,D) -> re-préparer WAV main
   const handleChangeMain = async (newMain) => {
