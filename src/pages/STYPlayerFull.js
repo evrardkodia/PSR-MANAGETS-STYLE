@@ -279,10 +279,14 @@ const renderBeatCard = (beat) => (
       <img src={getIconPath(beat.title)} alt="icon" className="w-8 h-8 object-contain" />
     </div>
     <div style={{ fontSize: '0.8rem', lineHeight: '1rem' }}> {/* 2️⃣ Police réduite */}
+      
       <p className="font-semibold">{beat.title}</p>
+       {beat.user.username && ( // 3️⃣ Ajout de l'auteur si dispo
       <p className="text-sm text-gray-400">
-        {beat.signature} - {beat.tempo} BPM
-      </p>
+        {beat.signature} - {beat.tempo} BPM 
+        `  `
+         Auteur : {beat.user.username}
+      </p>)}
       {beat.user.username && ( // 3️⃣ Ajout de l'auteur si dispo
         <p className="text-xs text-gray-500">
           Auteur : {beat.user.username}
