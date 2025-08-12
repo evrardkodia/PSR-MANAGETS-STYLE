@@ -284,14 +284,9 @@ const renderBeatCard = (beat) => (
        {beat.user.username && ( // 3️⃣ Ajout de l'auteur si dispo
       <p className="text-sm text-gray-400">
         {beat.signature} - {beat.tempo} BPM 
-        `  `
+        
          Auteur : {beat.user.username}
       </p>)}
-      {beat.user.username && ( // 3️⃣ Ajout de l'auteur si dispo
-        <p className="text-xs text-gray-500">
-          Auteur : {beat.user.username}
-        </p>
-      )}
     </div>
   </div>
 );
