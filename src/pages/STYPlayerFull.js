@@ -83,71 +83,91 @@ export default function STYPlayer() {
   }, []);
 
   const handleSelectBeat = async (beat) => {
-    if (isLoading) return;
-    setIsLoading(true);
-    setSelectedBeat(beat);
+  if (isLoading) return;
+  setIsLoading(true);
+  setSelectedBeat(beat);
 
-    setControls({
-      acmp: false,
-      autofill: false,
-      intro: '',
-      main: 'A',
-      ending: '',
-      play: false,
-      disabledChannels: [11, 12, 13, 14, 15, 16],
-    });
-    setMainBlinking(null);
-    setPlayColor(null);
-    clearTimeout(playTimerRef.current);
+  setControls({
+    acmp: false,
+    autofill: false,
+    intro: '',
+    main: 'A',
+    ending: '',
+    play: false,
+    disabledChannels: [11, 12, 13, 14, 15, 16],
+  });
+  setMainBlinking(null);
+  setPlayColor(null);
+  clearTimeout(playTimerRef.current);
 
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      audioRef.current.removeAttribute('src');
-      audioRef.current.load();
-    }
-    setWavUrl(null);
-    setSectionsAvailability({}); // reset sections
+  if (audioRef.current) {
+    audioRef.current.pause();
+    audioRef.current.currentTime = 0;
+    audioRef.current.removeAttribute('src');
+    audioRef.current.load();
+  }
+  setWavUrl(null);
+  setSectionsAvailability({}); // reset sections
 
-    try {
-      const token = localStorage.getItem('token');
+  try {
+    const token = localStorage.getItem('token');
 
-      const prepareAllResp = await axios.post(
-        '/api/player/prepare-all',
-        { beatId: beat.id },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (prepareAllResp.data.sections) {
-        setSectionsAvailability(prepareAllResp.data.sections);
-        console.log('Sections détectées:', prepareAllResp.data.sections);
-      } else {
-        console.warn('Aucune section détectée par prepare-all');
-        setSectionsAvailability({});
-      }
-
-      const prepareMainResp = await axios.post(
-        '/api/player/prepare-main',
-        {
-          beatId: beat.id,
-          mainLetter: 'A',
-          acmpEnabled: false,
-          disabledChannels: [11, 12, 13, 14, 15, 16],
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (prepareMainResp.data.wavUrl) {
-        setWavUrl(prepareMainResp.data.wavUrl);
-      } else {
-        alert("❌ Erreur: fichier WAV non disponible après préparation");
-      }
-    } catch (err) {
-      console.error('❌ Préparation du beat échouée :', err);
-      alert("❌ Échec de la préparation du beat");
+    // 1️⃣ Préparer toutes les sections pour le frontend (préparation JSON boutons)
+    const prepareAllResp = await axios.post(
+      '/api/player/prepare-all',
+      { beatId: beat.id },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (prepareAllResp.data.sections) {
+      setSectionsAvailability(prepareAllResp.data.sections);
+      console.log('Sections détectées:', prepareAllResp.data.sections);
+    } else {
+      console.warn('Aucune section détectée par prepare-all');
       setSectionsAvailability({});
-    } finally {
-      setIsLoading(false);
     }
-  };
+
+    // 2️⃣ Préparer la main (wav pour play)
+    const prepareMainResp = await axios.post(
+      '/api/player/prepare-main',
+      {
+        beatId: beat.id,
+        mainLetter: 'A',
+        acmpEnabled: false,
+        disabledChannels: [11, 12, 13, 14, 15, 16],
+      },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (prepareMainResp.data.wavUrl) {
+      setWavUrl(prepareMainResp.data.wavUrl);
+    } else {
+      alert("❌ Erreur: fichier WAV non disponible après préparation");
+    }
+
+    // 3️⃣ Lancer en tâche de fond la préparation complète des sections (découpe full midi + conversion wav)
+    // sans attendre, sans bloquer l'interface, pas d'impact sur isLoading ni bouton Play
+    axios.post(
+      '/api/player/prepare-all-sections',
+      { beatId: beat.id },
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    .then(resp => {
+      console.log('prepare-all-sections terminé', resp.data);
+      // Optionnel : on pourrait mettre à jour l'UI ici si besoin, sans bloquer
+    })
+    .catch(err => {
+      console.warn('Erreur prepare-all-sections:', err);
+    });
+
+  } catch (err) {
+    console.error('❌ Préparation du beat échouée :', err);
+    alert("❌ Échec de la préparation du beat");
+    setSectionsAvailability({});
+  } finally {
+    // Ici on libère le loading AVANT que prepare-all-sections finisse
+    setIsLoading(false);
+  }
+};
+
 
   const handleChangeMain = async (newMain) => {
     if (isLoading || !selectedBeat) return;
