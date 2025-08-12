@@ -258,25 +258,35 @@ export default function STYPlayer() {
   const leftColumn = currentPageBeats.slice(0, 10);
   const rightColumn = currentPageBeats.slice(10, 20);
 
-  const renderBeatCard = (beat) => (
-    <div
-      key={beat.id}
-      onClick={() => handleSelectBeat(beat)}
-      className={`flex items-center gap-3 cursor-pointer p-2 mb-2 rounded-md transition hover:bg-blue-700 ${
-        selectedBeat?.id === beat.id ? 'bg-blue-800' : 'bg-[#3a3a3a]'
-      }`}
-    >
-      <div className="w-10 h-10 bg-white flex items-center justify-center rounded-sm">
-        <img src={getIconPath(beat.title)} alt="icon" className="w-8 h-8 object-contain" />
-      </div>
-      <div>
-        <p className="font-semibold">{beat.title}</p>
-        <p className="text-sm text-gray-400">
-          {beat.signature} - {beat.tempo} BPM
-        </p>
-      </div>
+const renderBeatCard = (beat) => (
+  <div
+    key={beat.id}
+    onClick={() => handleSelectBeat(beat)}
+    className={`flex items-center gap-3 cursor-pointer p-2 mb-2 rounded-md transition hover:bg-blue-700 ${
+      selectedBeat?.id === beat.id ? 'bg-blue-800' : 'bg-[#3a3a3a]'
+    }`}
+    style={{
+      height: '1cm', // 1️⃣ Hauteur réduite
+      minHeight: '1cm',
+    }}
+  >
+    <div className="w-10 h-10 bg-white flex items-center justify-center rounded-sm">
+      <img src={getIconPath(beat.title)} alt="icon" className="w-8 h-8 object-contain" />
     </div>
-  );
+    <div style={{ fontSize: '0.8rem', lineHeight: '1rem' }}> {/* 2️⃣ Police réduite */}
+      <p className="font-semibold">{beat.title}</p>
+      <p className="text-sm text-gray-400">
+        {beat.signature} - {beat.tempo} BPM
+      </p>
+      {beat.author && ( // 3️⃣ Ajout de l'auteur si dispo
+        <p className="text-xs text-gray-500">
+          Auteur : {beat.author}
+        </p>
+      )}
+    </div>
+  </div>
+);
+
 
   // Modifié : ajout param disabled et gestion couleur/bouton disabled
   const renderButton = (type, label, isActive, onClick, isBlinking = false, disabled = false) => {
