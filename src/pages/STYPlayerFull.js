@@ -25,7 +25,7 @@ export default function STYPlayer() {
   const blinkStepIndex = useRef(0);
   const audioRef = useRef(null);
   const navigate = useNavigate();
-  const ITEMS_PER_PAGE = 20;
+  const ITEMS_PER_PAGE = 10;
 
   const blinkSequence = [
     { color: 'blue', duration: 100 },
@@ -254,9 +254,14 @@ export default function STYPlayer() {
     });
   };
 
-  const currentPageBeats = beats.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
-  const leftColumn = currentPageBeats.slice(0, 10);
-  const rightColumn = currentPageBeats.slice(10, 20);
+// On récupère 10 beats max pour la page en cours
+const currentPageBeats = beats.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
+
+// Colonne gauche → 5 beats max
+const leftColumn = currentPageBeats.slice(0, 5);
+
+// Colonne droite → le reste
+const rightColumn = currentPageBeats.slice(5);
 
 const renderBeatCard = (beat) => (
   <div
@@ -278,9 +283,9 @@ const renderBeatCard = (beat) => (
       <p className="text-sm text-gray-400">
         {beat.signature} - {beat.tempo} BPM
       </p>
-      {beat.author && ( // 3️⃣ Ajout de l'auteur si dispo
+      {beat.user.username && ( // 3️⃣ Ajout de l'auteur si dispo
         <p className="text-xs text-gray-500">
-          Auteur : {beat.author}
+          Auteur : {beat.user.username}
         </p>
       )}
     </div>
@@ -328,8 +333,8 @@ const renderBeatCard = (beat) => (
     return `/icons/${index}.png`;
   };
 
-  const canGoPrev = page > 0;
-  const canGoNext = (page + 1) * ITEMS_PER_PAGE < beats.length;
+const canGoPrev = page > 0;
+const canGoNext = (page + 1) * ITEMS_PER_PAGE < beats.length;
 
   return (
     <div className="min-h-screen bg-[#1a1a1a] text-white p-6 select-none">
