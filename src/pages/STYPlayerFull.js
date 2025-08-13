@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 export default function STYPlayer() {
   const [beats, setBeats] = useState([]);
   const [selectedBeat, setSelectedBeat] = useState(null);
-  const [sectionsAvailability, setSectionsAvailability] = useState({}); // <-- ajouté
+  const [sectionsAvailability, setSectionsAvailability] = useState({});
   const [page, setPage] = useState(0);
   const [controls, setControls] = useState({
     acmp: false,
@@ -14,16 +14,15 @@ export default function STYPlayer() {
     main: 'A',
     ending: '',
     play: false,
-    disabledChannels: [11, 12, 13, 14, 15, 16],
   });
   const [mainBlinking, setMainBlinking] = useState(null);
   const [playColor, setPlayColor] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [wavUrl, setWavUrl] = useState(null);
 
+  const audioRef = useRef(null);
   const playTimerRef = useRef(null);
   const blinkStepIndex = useRef(0);
-  const audioRef = useRef(null);
   const navigate = useNavigate();
   const ITEMS_PER_PAGE = 10;
 
@@ -38,6 +37,13 @@ export default function STYPlayer() {
     { color: null, duration: 500 },
   ];
 
+  // Fonction générique pour générer l'URL Supabase
+  const getSupabaseWavUrl = (beatId, sectionName) => {
+    const filename = `${beatId}_${sectionName.replace(/ /g, '_')}.wav`;
+    return `https://swtbkiudmfvnywcgpzfe.supabase.co/storage/v1/object/public/midiAndWav/${beatId}/${filename}`;
+  };
+
+  // Blinking play indicator
   useEffect(() => {
     if (controls.play) {
       blinkStepIndex.current = 0;
@@ -57,6 +63,7 @@ export default function STYPlayer() {
     return () => clearTimeout(playTimerRef.current);
   }, [controls.play]);
 
+  // Charger les beats
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -64,7 +71,7 @@ export default function STYPlayer() {
       return;
     }
     axios
-     .get('/api/beats', { headers: { Authorization: `Bearer ${token}` } })
+      .get('/api/beats', { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => {
         const sorted = res.data.beats.sort((a, b) => a.title.localeCompare(b.title));
         setBeats(sorted);
@@ -82,265 +89,182 @@ export default function STYPlayer() {
     };
   }, []);
 
+  // Sélection du beat
   const handleSelectBeat = async (beat) => {
-  if (isLoading) return;
-  setIsLoading(true);
-  setSelectedBeat(beat);
+    if (isLoading) return;
+    setIsLoading(true);
+    setSelectedBeat(beat);
 
-  setControls({
-    acmp: false,
-    autofill: false,
-    intro: '',
-    main: 'A',
-    ending: '',
-    play: false,
-    disabledChannels: [11, 12, 13, 14, 15, 16],
-  });
-  setMainBlinking(null);
-  setPlayColor(null);
-  clearTimeout(playTimerRef.current);
-
-  if (audioRef.current) {
-    audioRef.current.pause();
-    audioRef.current.currentTime = 0;
-    audioRef.current.removeAttribute('src');
-    audioRef.current.load();
-  }
-  setWavUrl(null);
-  setSectionsAvailability({}); // reset sections
-
-  try {
-    const token = localStorage.getItem('token');
-
-    // 1️⃣ Préparer toutes les sections pour le frontend (préparation JSON boutons)
-    const prepareAllResp = await axios.post(
-      '/api/player/prepare-all',
-      { beatId: beat.id },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    if (prepareAllResp.data.sections) {
-      setSectionsAvailability(prepareAllResp.data.sections);
-      console.log('Sections détectées:', prepareAllResp.data.sections);
-    } else {
-      console.warn('Aucune section détectée par prepare-all');
-      setSectionsAvailability({});
-    }
-
-    // 2️⃣ Préparer la main (wav pour play)
-    const prepareMainResp = await axios.post(
-      '/api/player/prepare-main',
-      {
-        beatId: beat.id,
-        mainLetter: 'A',
-        acmpEnabled: false,
-        disabledChannels: [11, 12, 13, 14, 15, 16],
-      },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    if (prepareMainResp.data.wavUrl) {
-      setWavUrl(prepareMainResp.data.wavUrl);
-    } else {
-      alert("❌ Erreur: fichier WAV non disponible après préparation");
-    }
-
-    // 3️⃣ Lancer en tâche de fond la préparation complète des sections (découpe full midi + conversion wav)
-    // sans attendre, sans bloquer l'interface, pas d'impact sur isLoading ni bouton Play
-    axios.post(
-      '/api/player/prepare-all-sections',
-      { beatId: beat.id },
-      { headers: { Authorization: `Bearer ${token}` } }
-    )
-    .then(resp => {
-      console.log('prepare-all-sections terminé', resp.data);
-      // Optionnel : on pourrait mettre à jour l'UI ici si besoin, sans bloquer
-    })
-    .catch(err => {
-      console.warn('Erreur prepare-all-sections:', err);
+    // Reset controls et audio
+    setControls({
+      acmp: false,
+      autofill: false,
+      intro: '',
+      main: 'A',
+      ending: '',
+      play: false,
     });
+    setMainBlinking(null);
+    setPlayColor(null);
+    clearTimeout(playTimerRef.current);
 
-  } catch (err) {
-    console.error('❌ Préparation du beat échouée :', err);
-    alert("❌ Échec de la préparation du beat");
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current.removeAttribute('src');
+      audioRef.current.load();
+    }
+    setWavUrl(null);
     setSectionsAvailability({});
-  } finally {
-    // Ici on libère le loading AVANT que prepare-all-sections finisse
-    setIsLoading(false);
-  }
-};
 
+    try {
+      const token = localStorage.getItem('token');
 
- const handleChangeMain = async (newMain) => {
-  if (isLoading || !selectedBeat) return;
-  setMainBlinking(newMain);
-  setControls((prev) => ({ ...prev, main: newMain }));
+      // Récupérer toutes les sections disponibles
+      const prepareAllResp = await axios.post(
+        '/api/player/prepare-all',
+        { beatId: beat.id },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
-  setIsLoading(true);
-  try {
-    const token = localStorage.getItem('token');
-    const response = await axios.post(
-      '/api/player/prepare-main',
-      {
-        beatId: selectedBeat.id,
-        mainLetter: newMain,
-        acmpEnabled: controls.acmp,
-        disabledChannels: controls.disabledChannels,
-      },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    if (response.data.wavUrl) {
-      setWavUrl(response.data.wavUrl);
-
-      // --- NOUVEAU : si on est déjà en lecture, switch immédiat du son ---
-      if (controls.play && audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.src = response.data.wavUrl;
-        audioRef.current.load();
-        audioRef.current.currentTime = 0;
-        audioRef.current.loop = true;
-        try {
-          await audioRef.current.play();
-        } catch (err) {
-          console.error('Erreur lors du switch audio:', err);
-        }
+      if (prepareAllResp.data.sections) {
+        setSectionsAvailability(prepareAllResp.data.sections);
+        console.log('Sections détectées:', prepareAllResp.data.sections);
+      } else {
+        console.warn('Aucune section détectée');
+        setSectionsAvailability({});
       }
-    } else {
-      alert("❌ Erreur: fichier WAV non disponible après préparation");
+    } catch (err) {
+      console.error('❌ Préparation du beat échouée :', err);
+      alert("❌ Échec de la préparation du beat");
+      setSectionsAvailability({});
+    } finally {
+      setIsLoading(false);
     }
-  } catch (err) {
-    console.error('❌ Préparation main échouée :', err);
-    alert("❌ Échec de la préparation du main");
-  } finally {
-    setIsLoading(false);
-  }
+  };
 
-  setTimeout(() => setMainBlinking(null), 2000);
-};
+  // Lecture d’une section spécifique
+  const handlePlaySection = async (sectionName) => {
+    if (!selectedBeat) return;
+    if (sectionsAvailability[sectionName] !== 1) return;
 
+    const url = getSupabaseWavUrl(selectedBeat.id, sectionName);
+    setWavUrl(url);
 
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = url;
+      audioRef.current.load();
+      audioRef.current.currentTime = 0;
+
+      // Boucle seulement pour les Main
+      audioRef.current.loop = /^Main\s[ABCD]$/.test(sectionName);
+      try {
+        await audioRef.current.play();
+        setControls((prev) => ({ ...prev, play: true }));
+      } catch (err) {
+        console.error('❌ Lecture audio échouée :', err);
+      }
+    }
+
+    // Mettre à jour le contrôle actif
+    const typeMatch = sectionName.match(/^(Main|Intro|Ending)\s([ABCD]{1,2})$/);
+    if (!typeMatch) return;
+    const [, type, letter] = typeMatch;
+
+    setControls((prev) => ({
+      ...prev,
+      main: type === 'Main' ? letter : prev.main,
+      intro: type === 'Intro' ? letter : prev.intro,
+      ending: type === 'Ending' ? letter : prev.ending,
+    }));
+
+    if (type === 'Main') {
+      setMainBlinking(letter);
+      setTimeout(() => setMainBlinking(null), 2000);
+    }
+  };
+
+  // Toggle play/pause
   const togglePlay = async () => {
-    if (!selectedBeat || isLoading) {
-      alert('⚠️ Aucun beat sélectionné ou chargement en cours.');
-      return;
-    }
-    if (!wavUrl) {
-      alert("⚠️ Le fichier audio n'est pas prêt, veuillez patienter.");
-      return;
-    }
-
+    if (!selectedBeat || isLoading || !wavUrl) return;
     if (controls.play) {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-      }
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
       setControls((prev) => ({ ...prev, play: false }));
       setPlayColor(null);
       clearTimeout(playTimerRef.current);
     } else {
-      if (audioRef.current) {
-        audioRef.current.src = wavUrl;
-        audioRef.current.load();
-        audioRef.current.currentTime = 0;
-        audioRef.current.loop = true;
-        try {
-          const token = localStorage.getItem('token');
-          await axios.post(
-            '/api/player/play-section',
-            { beatId: selectedBeat.id, mainLetter: controls.main },
-            { headers: { Authorization: `Bearer ${token}` } }
-          );
-
-          await audioRef.current.play();
-          setControls((prev) => ({ ...prev, play: true }));
-        } catch (err) {
-          console.error('❌ Lecture audio échouée ou notification backend échouée :', err);
-          alert('❌ Impossible de lire le fichier audio');
-        }
+      audioRef.current.loop = true;
+      try {
+        await audioRef.current.play();
+        setControls((prev) => ({ ...prev, play: true }));
+      } catch (err) {
+        console.error(err);
       }
     }
   };
 
   const handleControlClick = (type, value = null) => {
-    if (type === 'main') {
-      if (sectionsAvailability[`Main ${value}`] === 1) {
-        handleChangeMain(value);
-      }
+    if (type === 'main' || type === 'intro' || type === 'ending') {
+      const sectionName = `${type.charAt(0).toUpperCase() + type.slice(1)} ${value}`;
+      handlePlaySection(sectionName);
       return;
     }
+
+    if (type === 'acmp' || type === 'autofill') {
+      setControls((prev) => ({ ...prev, [type]: !prev[type] }));
+      return;
+    }
+
     if (type === 'play') {
       togglePlay();
       return;
     }
-    setControls((prev) => {
-      const updated = { ...prev };
-      if (type === 'acmp' || type === 'autofill') {
-        updated[type] = !prev[type];
-      } else if (type === 'intro') {
-        if (sectionsAvailability[`Intro ${value}`] === 1) {
-          updated.intro = prev.intro === value ? '' : value;
-          updated.ending = '';
-        }
-      } else if (type === 'ending') {
-        if (sectionsAvailability[`Ending ${value}`] === 1 || sectionsAvailability[`End ${value}`] === 1) {
-          updated.ending = prev.ending === value ? '' : value;
-          updated.intro = '';
-        }
-      }
-      return updated;
-    });
   };
 
-// On récupère 10 beats max pour la page en cours
-const currentPageBeats = beats.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
+  // Pagination
+  const currentPageBeats = beats.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
+  const leftColumn = currentPageBeats.slice(0, 5);
+  const rightColumn = currentPageBeats.slice(5);
 
-// Colonne gauche → 5 beats max
-const leftColumn = currentPageBeats.slice(0, 5);
-
-// Colonne droite → le reste
-const rightColumn = currentPageBeats.slice(5);
-
-const renderBeatCard = (beat) => (
-  <div
-    key={beat.id}
-    onClick={() => handleSelectBeat(beat)}
-    className={`flex items-center gap-3 cursor-pointer p-2 mb-2 rounded-md transition hover:bg-blue-700 ${
-      selectedBeat?.id === beat.id ? 'bg-blue-800' : 'bg-[#3a3a3a]'
-    }`}
-    style={{
-      height: '1cm', // 1️⃣ Hauteur réduite
-      minHeight: '1cm',
-    }}
-  >
-    <div className="w-10 h-10 bg-white flex items-center justify-center rounded-sm">
-      <img src={getIconPath(beat.title)} alt="icon" className="w-8 h-8 object-contain" />
+  const renderBeatCard = (beat) => (
+    <div
+      key={beat.id}
+      onClick={() => handleSelectBeat(beat)}
+      className={`flex items-center gap-3 cursor-pointer p-2 mb-2 rounded-md transition hover:bg-blue-700 ${
+        selectedBeat?.id === beat.id ? 'bg-blue-800' : 'bg-[#3a3a3a]'
+      }`}
+      style={{ height: '1cm', minHeight: '1cm' }}
+    >
+      <div className="w-10 h-10 bg-white flex items-center justify-center rounded-sm">
+        <img src={getIconPath(beat.title)} alt="icon" className="w-8 h-8 object-contain" />
+      </div>
+      <div style={{ fontSize: '0.8rem', lineHeight: '1rem' }}>
+        <p className="font-semibold">{beat.title}</p>
+        {beat.user?.username && (
+          <p className="text-sm text-gray-400">
+            {beat.signature} - {beat.tempo} BPM - Auteur : {beat.user.username}
+          </p>
+        )}
+      </div>
     </div>
-    <div style={{ fontSize: '0.8rem', lineHeight: '1rem' }}> {/* 2️⃣ Police réduite */}
-      
-      <p className="font-semibold">{beat.title}</p>
-       {beat.user.username && ( // 3️⃣ Ajout de l'auteur si dispo
-      <p className="text-sm text-gray-400">
-        {beat.signature} - {beat.tempo} BPM 
-        
-         Auteur : {beat.user.username}
-      </p>)}
-    </div>
-  </div>
-);
+  );
 
+  const getIconPath = (title) => {
+    const iconCount = 10;
+    let sum = 0;
+    for (let i = 0; i < title.length; i++) sum += title.charCodeAt(i);
+    const index = (sum % iconCount) + 1;
+    return `/icons/${index}.png`;
+  };
 
-  // Modifié : ajout param disabled et gestion couleur/bouton disabled
   const renderButton = (type, label, isActive, onClick, isBlinking = false, disabled = false) => {
     let colorClass = 'bg-transparent';
-    if (type === 'acmp' || type === 'autofill') {
-      colorClass = isActive ? 'bg-orange-400 glow' : 'bg-black';
-    } else if (type === 'main') {
-      colorClass = isBlinking ? 'animate-orange-blue-blink' : isActive ? 'bg-blue-500 glow' : 'bg-orange-400';
-    } else {
-      colorClass = isActive ? 'bg-orange-400 glow' : 'bg-transparent';
-    }
-
-    if (disabled) {
-      colorClass = 'bg-black';
-    }
+    if (type === 'acmp' || type === 'autofill') colorClass = isActive ? 'bg-orange-400 glow' : 'bg-black';
+    else if (type === 'main') colorClass = isBlinking ? 'animate-orange-blue-blink' : isActive ? 'bg-blue-500 glow' : 'bg-orange-400';
+    else colorClass = isActive ? 'bg-orange-400 glow' : 'bg-transparent';
+    if (disabled) colorClass = 'bg-black';
 
     return (
       <div
@@ -359,17 +283,6 @@ const renderBeatCard = (beat) => (
     );
   };
 
-  const getIconPath = (title) => {
-    const iconCount = 10;
-    let sum = 0;
-    for (let i = 0; i < title.length; i++) sum += title.charCodeAt(i);
-    const index = (sum % iconCount) + 1;
-    return `/icons/${index}.png`;
-  };
-
-const canGoPrev = page > 0;
-const canGoNext = (page + 1) * ITEMS_PER_PAGE < beats.length;
-
   return (
     <div className="min-h-screen bg-[#1a1a1a] text-white p-6 select-none">
       <audio ref={audioRef} hidden />
@@ -377,36 +290,11 @@ const canGoNext = (page + 1) * ITEMS_PER_PAGE < beats.length;
 
       <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <div className="bg-[#2a2a2a] p-4 rounded-xl shadow-inner">
-          {leftColumn.length === 0 ? (
-            <p className="text-gray-400 text-center">Aucun beat disponible</p>
-          ) : (
-            leftColumn.map(renderBeatCard)
-          )}
+          {leftColumn.length === 0 ? <p className="text-gray-400 text-center">Aucun beat disponible</p> : leftColumn.map(renderBeatCard)}
         </div>
         <div className="bg-[#2a2a2a] p-4 rounded-xl shadow-inner">
-          {rightColumn.length === 0 ? (
-            <p className="text-gray-400 text-center">Rien à afficher</p>
-          ) : (
-            rightColumn.map(renderBeatCard)
-          )}
+          {rightColumn.length === 0 ? <p className="text-gray-400 text-center">Rien à afficher</p> : rightColumn.map(renderBeatCard)}
         </div>
-      </div>
-
-      <div className="flex justify-center gap-4 mb-6">
-        <button
-          onClick={() => canGoPrev && setPage((p) => p - 1)}
-          disabled={!canGoPrev}
-          className="bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white py-2 px-4 rounded"
-        >
-          ← Précédent
-        </button>
-        <button
-          onClick={() => canGoNext && setPage((p) => p + 1)}
-          disabled={!canGoNext}
-          className="bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white py-2 px-4 rounded"
-        >
-          Suivant →
-        </button>
       </div>
 
       {selectedBeat && (
@@ -417,63 +305,20 @@ const canGoNext = (page + 1) * ITEMS_PER_PAGE < beats.length;
 
             {['A', 'B', 'C', 'D'].map((i) => {
               const enabled = sectionsAvailability[`Intro ${i}`] === 1;
-              return renderButton(
-                'intro',
-                `INTRO ${i}`,
-                controls.intro === i && enabled,
-                () => handleControlClick('intro', i),
-                false,
-                !enabled
-              );
+              return renderButton('intro', `INTRO ${i}`, controls.intro === i && enabled, () => handleControlClick('intro', i), false, !enabled);
             })}
 
             {['A', 'B', 'C', 'D'].map((m) => {
               const enabled = sectionsAvailability[`Main ${m}`] === 1;
-              return renderButton(
-                'main',
-                m,
-                controls.main === m && enabled,
-                () => handleControlClick('main', m),
-                mainBlinking === m,
-                !enabled
-              );
+              return renderButton('main', m, controls.main === m && enabled, () => handleControlClick('main', m), mainBlinking === m, !enabled);
             })}
 
             {['A', 'B', 'C', 'D'].map((i) => {
-              // On accepte aussi "End X" au cas où le backend utilise ce label
-              const enabled =
-                sectionsAvailability[`Ending ${i}`] === 1 || sectionsAvailability[`End ${i}`] === 1;
-              return renderButton(
-                'ending',
-                `END ${i}`,
-                controls.ending === i && enabled,
-                () => handleControlClick('ending', i),
-                false,
-                !enabled
-              );
+              const enabled = sectionsAvailability[`Ending ${i}`] === 1 || sectionsAvailability[`End ${i}`] === 1;
+              return renderButton('ending', `END ${i}`, controls.ending === i && enabled, () => handleControlClick('ending', i), false, !enabled);
             })}
 
-            <div
-              className="flex flex-col items-center cursor-pointer"
-              onClick={() => handleControlClick('play')}
-            >
-              <div
-                className={`w-8 h-2 mb-1 rounded-sm ${
-                  playColor === 'blue'
-                    ? 'bg-blue-500 glow'
-                    : playColor === 'orange'
-                    ? 'bg-orange-400 glow'
-                    : 'bg-black'
-                }`}
-              />
-              <button
-                className="text-[10px] bg-gray-300 hover:bg-gray-400 text-black w-16 h-[60px] rounded-md font-bold"
-                disabled={isLoading}
-                title={isLoading ? "Chargement en cours..." : controls.play ? "Arrêter la lecture" : "Lire le beat"}
-              >
-                {isLoading ? '⏳' : controls.play ? '⏹ STOP' : '▶️ PLAY'}
-              </button>
-            </div>
+            {renderButton('play', controls.play ? '⏹ STOP' : '▶️ PLAY', controls.play, () => handleControlClick('play'))}
           </div>
         </div>
       )}
