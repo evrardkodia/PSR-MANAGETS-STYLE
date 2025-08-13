@@ -1,9 +1,15 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { createClient } from '@supabase/supabase-js';
 
-// Configurer axios pour pointer vers le backend
 axios.defaults.baseURL = 'https://psr-manager-beat.onrender.com';
+
+// 🔹 Connexion à Supabase
+const supabase = createClient(
+  'https://swtbkiudmfvnywcgpzfe.supabase.co',
+  process.env.REACT_APP_SUPABASE_KEY // ⚠️ Mets ta clé API publique dans .env
+);
 
 export default function UploadBeat() {
   const [file, setFile] = useState(null);
@@ -15,7 +21,7 @@ export default function UploadBeat() {
   const [customSignature, setCustomSignature] = useState(false);
   const [customTop, setCustomTop] = useState('');
   const [customBottom, setCustomBottom] = useState('');
-  const [loading, setLoading] = useState(false); // ← NEW
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleFileUpload = (e) => {
@@ -31,7 +37,6 @@ export default function UploadBeat() {
       return;
     }
 
-    // Préparer formData
     const formData = new FormData();
     formData.append('beat', file);
     formData.append('title', title);
@@ -41,28 +46,49 @@ export default function UploadBeat() {
     const signature = customSignature ? `${customTop}/${customBottom}` : timeSignature;
     formData.append('signature', signature);
 
-    setLoading(true); // ← Affiche le spinner
+    setLoading(true);
 
     try {
       const token = localStorage.getItem('token');
 
-      // 1. Upload du beat
-      await axios.post('/api/beats/upload', formData, {
+      // 1️⃣ Upload du beat
+      const uploadRes = await axios.post('/api/beats/upload', formData, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data',
         },
       });
 
-      // 2. Appel à la préparation des sections (mid + wav)
-      await axios.post('/api/player/prepare-all-sections', { title }, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      const beatId = uploadRes.data.id;
+
+      // 2️⃣ Génération des mid + wav
+      const prepareRes = await axios.post('/api/player/prepare-all-sections', { beatId }, {
+        headers: { Authorization: `Bearer ${token}` },
       });
 
+      const generatedFiles = prepareRes.data.files; // ⚠️ Il faut que le backend renvoie cette liste
+
+      // 3️⃣ Upload sur Supabase
+      for (const fileName of generatedFiles) {
+        // On récupère le fichier depuis le backend
+        const fileBlob = await fetch(`${axios.defaults.baseURL}/temp/${fileName}`).then(res => res.blob());
+
+        // Upload dans Supabase (dans un dossier du beatId)
+        const { error } = await supabase
+          .storage
+          .from('midiAndWav')
+          .upload(`${beatId}/${fileName}`, fileBlob, {
+            cacheControl: '3600',
+            upsert: true
+          });
+
+        if (error) {
+          console.error(`Erreur upload Supabase pour ${fileName}:`, error);
+        }
+      }
+
       setLoading(false);
-      alert('Beat ajouté et fichiers générés avec succès !');
+      alert('Beat ajouté et fichiers envoyés sur Supabase ✅');
       navigate('/dashboard');
     } catch (err) {
       console.error(err);
