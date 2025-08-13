@@ -186,24 +186,46 @@ export default function STYPlayer() {
   };
 
   // Toggle play/pause
-  const togglePlay = async () => {
-    if (!selectedBeat || isLoading || !wavUrl) return;
-    if (controls.play) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      setControls((prev) => ({ ...prev, play: false }));
-      setPlayColor(null);
-      clearTimeout(playTimerRef.current);
-    } else {
-      audioRef.current.loop = true;
-      try {
-        await audioRef.current.play();
-        setControls((prev) => ({ ...prev, play: true }));
-      } catch (err) {
-        console.error(err);
+// Toggle play/pause
+const togglePlay = async () => {
+  if (!selectedBeat || isLoading) return;
+
+  if (controls.play) {
+    // STOP
+    audioRef.current.pause();
+    audioRef.current.currentTime = 0;
+    setControls((prev) => ({ ...prev, play: false }));
+    setPlayColor(null);
+    clearTimeout(playTimerRef.current);
+  } else {
+    // Si aucun wav déjà défini, on regarde quel voyant est actif
+    if (!wavUrl) {
+      let sectionName = null;
+
+      if (controls.intro) sectionName = `Intro ${controls.intro}`;
+      else if (controls.main) sectionName = `Main ${controls.main}`;
+      else if (controls.ending) sectionName = `Ending ${controls.ending}`;
+
+      if (sectionName && sectionsAvailability[sectionName] === 1) {
+        await handlePlaySection(sectionName);
+        return; // handlePlaySection va lancer la lecture
+      } else {
+        console.warn("⚠️ Aucune section active trouvée pour jouer");
+        return;
       }
     }
-  };
+
+    // Si on a déjà un wavUrl, juste lecture
+    audioRef.current.loop = true;
+    try {
+      await audioRef.current.play();
+      setControls((prev) => ({ ...prev, play: true }));
+    } catch (err) {
+      console.error(err);
+    }
+  }
+};
+
 
   const handleControlClick = (type, value = null) => {
     if (type === 'main' || type === 'intro' || type === 'ending') {
