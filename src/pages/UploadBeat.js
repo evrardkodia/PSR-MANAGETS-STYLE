@@ -30,79 +30,81 @@ export default function UploadBeat() {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    if (!file || !title) {
-      alert("Fichier et titre requis !");
-      return;
-    }
+  if (!file || !title) {
+    alert("Fichier et titre requis !");
+    return;
+  }
 
-    const formData = new FormData();
-    formData.append('beat', file);
-    formData.append('title', title);
-    formData.append('tempo', tempo);
-    formData.append('description', description);
+  const formData = new FormData();
+  formData.append('beat', file);
+  formData.append('title', title);
+  formData.append('tempo', tempo);
+  formData.append('description', description);
 
-    const signature = customSignature ? `${customTop}/${customBottom}` : timeSignature;
-    formData.append('signature', signature);
+  const signature = customSignature ? `${customTop}/${customBottom}` : timeSignature;
+  formData.append('signature', signature);
 
-    setLoading(true);
+  setLoading(true);
 
-    try {
-      const token = localStorage.getItem('token');
+  try {
+    const token = localStorage.getItem('token');
 
-      // 1️⃣ Upload du beat
-      const uploadRes = await axios.post('/api/beats/upload', formData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+    // 1️⃣ Upload du beat
+    const uploadRes = await axios.post('/api/beats/upload', formData, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'multipart/form-data',
+      },
+    });
 
-      const beatId = uploadRes.data.id;
+    const beatId = uploadRes.data.id;
 
-      // 2️⃣ Génération des mid + wav
-      const prepareRes = await axios.post('/api/player/prepare-all-sections', { beatId }, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+    // 2️⃣ Génération des mid + wav
+    const prepareRes = await axios.post('/api/player/prepare-all-sections', { beatId }, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
 
-      const generatedFiles = prepareRes.data.files; // tableau d'objets { sectionName, midFilename, url }
+    // ⚠️ utiliser "sections" et non "files"
+    const generatedFiles = prepareRes.data.sections; // tableau d'objets { sectionName, midFilename, url }
 
-      // 3️⃣ Upload sur Supabase
-      for (const fileObj of generatedFiles) {
-        const fileUrl = fileObj.url;
-        const fileName = fileObj.midFilename;
+    // 3️⃣ Upload sur Supabase
+    for (const fileObj of generatedFiles) {
+      const fileUrl = fileObj.url;
+      const fileName = fileObj.midFilename;
 
-        try {
-          const fileBlob = await fetch(fileUrl).then(res => res.blob());
+      try {
+        const fileBlob = await fetch(fileUrl).then(res => res.blob());
 
-          const { error } = await supabase
-            .storage
-            .from('midiAndWav')
-            .upload(`${beatId}/${fileName}`, fileBlob, {
-              cacheControl: '3600',
-              upsert: true
-            });
+        const { error } = await supabase
+          .storage
+          .from('midiAndWav')
+          .upload(`${beatId}/${fileName}`, fileBlob, {
+            cacheControl: '3600',
+            upsert: true
+          });
 
-          if (error) {
-            console.error(`Erreur upload Supabase pour ${fileName}:`, error);
-          } else {
-            console.log(`✅ Fichier uploadé sur Supabase: ${fileName}`);
-          }
-        } catch (fetchErr) {
-          console.error(`Erreur fetch pour ${fileName}:`, fetchErr);
+        if (error) {
+          console.error(`Erreur upload Supabase pour ${fileName}:`, error);
+        } else {
+          console.log(`✅ Fichier uploadé sur Supabase: ${fileName}`);
         }
+      } catch (fetchErr) {
+        console.error(`Erreur fetch pour ${fileName}:`, fetchErr);
       }
-
-      setLoading(false);
-      alert('Beat ajouté et fichiers envoyés sur Supabase ✅');
-      navigate('/dashboard');
-    } catch (err) {
-      console.error(err);
-      setLoading(false);
-      alert(err.response?.data?.error || 'Erreur lors de l’envoi ou de la préparation');
     }
-  };
+
+    setLoading(false);
+    alert('Beat ajouté et fichiers envoyés sur Supabase ✅');
+    navigate('/dashboard');
+  } catch (err) {
+    console.error(err);
+    setLoading(false);
+    alert(err.response?.data?.error || 'Erreur lors de l’envoi ou de la préparation');
+  }
+};
+
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8 relative">
