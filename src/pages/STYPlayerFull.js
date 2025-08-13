@@ -169,38 +169,53 @@ export default function STYPlayer() {
 };
 
 
-  const handleChangeMain = async (newMain) => {
-    if (isLoading || !selectedBeat) return;
-    setMainBlinking(newMain);
-    setControls((prev) => ({ ...prev, main: newMain }));
+ const handleChangeMain = async (newMain) => {
+  if (isLoading || !selectedBeat) return;
+  setMainBlinking(newMain);
+  setControls((prev) => ({ ...prev, main: newMain }));
 
-    setIsLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.post(
-        '/api/player/prepare-main',
-        {
-          beatId: selectedBeat.id,
-          mainLetter: newMain,
-          acmpEnabled: controls.acmp,
-          disabledChannels: controls.disabledChannels,
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (response.data.wavUrl) {
-        setWavUrl(response.data.wavUrl);
-      } else {
-        alert("❌ Erreur: fichier WAV non disponible après préparation");
+  setIsLoading(true);
+  try {
+    const token = localStorage.getItem('token');
+    const response = await axios.post(
+      '/api/player/prepare-main',
+      {
+        beatId: selectedBeat.id,
+        mainLetter: newMain,
+        acmpEnabled: controls.acmp,
+        disabledChannels: controls.disabledChannels,
+      },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (response.data.wavUrl) {
+      setWavUrl(response.data.wavUrl);
+
+      // --- NOUVEAU : si on est déjà en lecture, switch immédiat du son ---
+      if (controls.play && audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = response.data.wavUrl;
+        audioRef.current.load();
+        audioRef.current.currentTime = 0;
+        audioRef.current.loop = true;
+        try {
+          await audioRef.current.play();
+        } catch (err) {
+          console.error('Erreur lors du switch audio:', err);
+        }
       }
-    } catch (err) {
-      console.error('❌ Préparation main échouée :', err);
-      alert("❌ Échec de la préparation du main");
-    } finally {
-      setIsLoading(false);
+    } else {
+      alert("❌ Erreur: fichier WAV non disponible après préparation");
     }
+  } catch (err) {
+    console.error('❌ Préparation main échouée :', err);
+    alert("❌ Échec de la préparation du main");
+  } finally {
+    setIsLoading(false);
+  }
 
-    setTimeout(() => setMainBlinking(null), 2000);
-  };
+  setTimeout(() => setMainBlinking(null), 2000);
+};
+
 
   const togglePlay = async () => {
     if (!selectedBeat || isLoading) {
