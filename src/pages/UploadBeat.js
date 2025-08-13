@@ -15,6 +15,7 @@ export default function UploadBeat() {
   const [customSignature, setCustomSignature] = useState(false);
   const [customTop, setCustomTop] = useState('');
   const [customBottom, setCustomBottom] = useState('');
+  const [loading, setLoading] = useState(false); // ← NEW
   const navigate = useNavigate();
 
   const handleFileUpload = (e) => {
@@ -30,9 +31,9 @@ export default function UploadBeat() {
       return;
     }
 
-    // *** ICI ON ENVOIE LE FICHIER TEL QUEL SANS RENOMMER ***
+    // Préparer formData
     const formData = new FormData();
-    formData.append('beat', file); // <-- Pas de renommage
+    formData.append('beat', file);
     formData.append('title', title);
     formData.append('tempo', tempo);
     formData.append('description', description);
@@ -40,24 +41,47 @@ export default function UploadBeat() {
     const signature = customSignature ? `${customTop}/${customBottom}` : timeSignature;
     formData.append('signature', signature);
 
+    setLoading(true); // ← Affiche le spinner
+
     try {
       const token = localStorage.getItem('token');
+
+      // 1. Upload du beat
       await axios.post('/api/beats/upload', formData, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data',
         },
       });
-      alert('Beat ajouté avec succès !');
+
+      // 2. Appel à la préparation des sections (mid + wav)
+      await axios.post('/api/player/prepare-all-sections', { title }, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      setLoading(false);
+      alert('Beat ajouté et fichiers générés avec succès !');
       navigate('/dashboard');
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.error || 'Erreur lors de l’envoi');
+      setLoading(false);
+      alert(err.response?.data?.error || 'Erreur lors de l’envoi ou de la préparation');
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-8">
+    <div className="min-h-screen bg-gray-900 text-white p-8 relative">
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-70 z-50">
+          <div className="flex flex-col items-center">
+            <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-blue-500 mb-4"></div>
+            <p className="text-lg">Traitement en cours, veuillez patienter...</p>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-xl mx-auto bg-gray-800 p-6 rounded-xl shadow-lg">
         <h2 className="text-2xl font-bold mb-4">Ajouter un nouveau beat</h2>
 
@@ -160,6 +184,7 @@ export default function UploadBeat() {
             <button
               type="submit"
               className="w-full bg-blue-600 hover:bg-blue-700 p-2 rounded font-bold"
+              disabled={loading}
             >
               Enregistrer le beat
             </button>
