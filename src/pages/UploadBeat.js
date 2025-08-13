@@ -66,24 +66,31 @@ export default function UploadBeat() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      const generatedFiles = prepareRes.data.files; // ⚠️ Il faut que le backend renvoie cette liste
+      const generatedFiles = prepareRes.data.files; // tableau d'objets { sectionName, midFilename, url }
 
       // 3️⃣ Upload sur Supabase
-      for (const fileName of generatedFiles) {
-        // On récupère le fichier depuis le backend
-        const fileBlob = await fetch(`${axios.defaults.baseURL}/temp/${fileName}`).then(res => res.blob());
+      for (const fileObj of generatedFiles) {
+        const fileUrl = fileObj.url;
+        const fileName = fileObj.midFilename;
 
-        // Upload dans Supabase (dans un dossier du beatId)
-        const { error } = await supabase
-          .storage
-          .from('midiAndWav')
-          .upload(`${beatId}/${fileName}`, fileBlob, {
-            cacheControl: '3600',
-            upsert: true
-          });
+        try {
+          const fileBlob = await fetch(fileUrl).then(res => res.blob());
 
-        if (error) {
-          console.error(`Erreur upload Supabase pour ${fileName}:`, error);
+          const { error } = await supabase
+            .storage
+            .from('midiAndWav')
+            .upload(`${beatId}/${fileName}`, fileBlob, {
+              cacheControl: '3600',
+              upsert: true
+            });
+
+          if (error) {
+            console.error(`Erreur upload Supabase pour ${fileName}:`, error);
+          } else {
+            console.log(`✅ Fichier uploadé sur Supabase: ${fileName}`);
+          }
+        } catch (fetchErr) {
+          console.error(`Erreur fetch pour ${fileName}:`, fetchErr);
         }
       }
 
