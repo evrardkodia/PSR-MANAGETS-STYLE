@@ -55,6 +55,14 @@ export default function ManageBeats() {
     }
   };
 
+  const handleSelectAll = () => {
+    if (selectedBeats.length === beats.length) {
+      setSelectedBeats([]); // Désélectionner tout
+    } else {
+      setSelectedBeats(beats.map(beat => beat.id)); // Sélectionner tout
+    }
+  };
+
   const handleBulkDelete = () => {
     const confirmed = window.confirm('Êtes-vous sûr de vouloir supprimer tous les beats sélectionnés ?');
     if (!confirmed) return;
@@ -94,7 +102,14 @@ export default function ManageBeats() {
           <thead>
             <tr className="text-center">
               <th className="px-4 py-2">#</th>
-              <th className="px-4 py-2">Sélectionner</th>
+              <th className="px-4 py-2">
+                <input
+                  type="checkbox"
+                  checked={selectedBeats.length === beats.length}
+                  onChange={handleSelectAll}
+                  className="form-checkbox w-6 h-6"
+                />
+              </th>
               <th className="px-4 py-2">Nom</th>
               <th className="px-4 py-2">Tempo</th>
               <th className="px-4 py-2">Signature</th>
