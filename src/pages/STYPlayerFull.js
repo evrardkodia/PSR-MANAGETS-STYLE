@@ -3,31 +3,20 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Simple, dependency-free rotary knob (SVG)
-// - Drag vertically or use mouse wheel to change value
-// - Keyboard: ArrowUp/Down (±step), PageUp/PageDown (±5*step), Home/End (min/max)
+// Knob : bouton rotatif simple (drag vertical, molette, clavier)
 // ──────────────────────────────────────────────────────────────────────────────
-function Knob({
-  label,
-  min = 0,
-  max = 100,
-  step = 1,
-  value,
-  onChange,
-  caption,
-}) {
+function Knob({ label, min=0, max=100, step=1, value, onChange, caption }) {
   const clamp = (v) => Math.min(max, Math.max(min, v));
   const pct = (value - min) / (max - min);
-  const angle = -135 + pct * 270; // from -135° to +135°
+  const angle = -135 + pct * 270;
   const knobRef = useRef(null);
   const dragging = useRef(false);
   const startY = useRef(0);
   const startVal = useRef(value);
 
   const setFromDelta = (dy) => {
-    // vertical drag: 100px => full range
     const range = max - min;
-    const delta = -(dy / 100) * range; // invert (up increases)
+    const delta = -(dy / 100) * range;     // drag vers le haut => augmente
     const raw = startVal.current + delta;
     const stepped = Math.round(raw / step) * step;
     onChange(clamp(stepped));
@@ -52,9 +41,8 @@ function Knob({
 
   const onWheel = (e) => {
     e.preventDefault();
-    const direction = e.deltaY > 0 ? -1 : 1;
-    const next = clamp(value + direction * step);
-    onChange(next);
+    const dir = e.deltaY > 0 ? -1 : 1;
+    onChange(clamp(value + dir * step));
   };
 
   const onKeyDown = (e) => {
@@ -86,8 +74,8 @@ function Knob({
         onWheel={onWheel}
         className="w-28 h-28 rounded-full bg-[#2b2b2b] shadow-inner border border-black/30 relative grid place-items-center cursor-grab active:cursor-grabbing"
       >
-        {/* Dial */}
-        <svg width="84" height="84" viewBox="0 0 84 84" className="drop-shadow">
+        {/* Cadran */}
+        <svg width="84" height="84" viewBox="0 0 84 84">
           <defs>
             <linearGradient id="g" x1="0" x2="0" y1="0" y2="1">
               <stop offset="0%" stopColor="#3d3d3d" />
@@ -104,7 +92,7 @@ function Knob({
             const y2 = 42 + Math.sin(a) * 34;
             return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#666" strokeWidth="2" />;
           })}
-          {/* Needle */}
+          {/* Aiguille */}
           <g transform={`rotate(${angle} 42 42)`}>
             <line x1="42" y1="42" x2="42" y2="14" stroke="#f59e0b" strokeWidth="4" strokeLinecap="round" />
             <circle cx="42" cy="42" r="5" fill="#0f0f0f" stroke="#f59e0b" />
@@ -135,14 +123,15 @@ export default function STYPlayer() {
   const [playColor, setPlayColor] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // NEW: Master volume (0..1 -> UI shows 0..100) & Tempo (BPM)
-  const [volume, setVolume] = useState(80); // percent
+  // Volume (0..100) & Tempo (BPM)
+  const [volume, setVolume] = useState(80);
   const [tempo, setTempo] = useState(120);
-  const baseTempoRef = useRef(120); // BPM used to compute playbackRate
+  const baseTempoRef = useRef(120); // BPM d'origine du style (sert à playbackRate)
 
-  // deux audio elements : mainAudio pour loop, oneShotAudio pour Fill/Intro/Ending
-  const mainAudioRef = useRef(null);
-  const oneShotAudioRef = useRef(null);
+  // Audio
+  const mainAudioRef = useRef(null);     // boucle (Main A/B/C/D)
+  const oneShotAudioRef = useRef(null);  // one-shots (Intro / Ending / Fill)
+  const togglePlayRef = useRef(null);    // référence à la fonction Play/Pause courante
 
   const playTimerRef = useRef(null);
   const blinkStepIndex = useRef(0);
@@ -160,19 +149,20 @@ export default function STYPlayer() {
     { color: null, duration: 500 },
   ];
 
-  // Utility : construit l'URL dans Supabase (format exact demandé)
+  // URL Supabase pour les WAV
   const getSupabaseWavUrl = (beatId, sectionName) => {
     const filename = `${beatId}_${sectionName.replace(/ /g, '_')}.wav`;
     return `https://swtbkiudmfvnywcgpzfe.supabase.co/storage/v1/object/public/midiAndWav/${beatId}/${filename}`;
   };
 
-  // Playback side-effects: apply volume & tempo
+  // Appliquer volume
   useEffect(() => {
     const v = Math.max(0, Math.min(1, volume / 100));
     if (mainAudioRef.current) mainAudioRef.current.volume = v;
     if (oneShotAudioRef.current) oneShotAudioRef.current.volume = v;
   }, [volume]);
 
+  // Appliquer tempo (playbackRate = tempo / base)
   useEffect(() => {
     const base = baseTempoRef.current || 120;
     const rate = Math.max(0.25, Math.min(4, tempo / base));
@@ -180,7 +170,7 @@ export default function STYPlayer() {
     if (oneShotAudioRef.current) oneShotAudioRef.current.playbackRate = rate;
   }, [tempo]);
 
-  // indicateur clignotant lorsque lecture active
+  // Clignotement pendant lecture
   useEffect(() => {
     if (controls.play) {
       blinkStepIndex.current = 0;
@@ -200,7 +190,7 @@ export default function STYPlayer() {
     return () => clearTimeout(playTimerRef.current);
   }, [controls.play]);
 
-  // charger la liste de beats
+  // Charger la liste des beats
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -216,7 +206,7 @@ export default function STYPlayer() {
       .catch(() => navigate('/auth'));
   }, [navigate]);
 
-  // cleanup audio on unmount
+  // Nettoyage à l'unmount
   useEffect(() => {
     return () => {
       if (mainAudioRef.current) {
@@ -231,18 +221,19 @@ export default function STYPlayer() {
     };
   }, []);
 
-  // --- SELECT BEAT --- (reset + récupérer sections via /prepare-all)
+  // Sélection d’un beat : reset + préparation des sections
   const handleSelectBeat = async (beat) => {
     if (isLoading) return;
     setIsLoading(true);
     setSelectedBeat(beat);
 
-    // reset controls & audio
+    // reset UI
     setControls({ acmp: false, autofill: false, intro: '', main: 'A', ending: '', play: false });
     setMainBlinking(null);
     setPlayColor(null);
     clearTimeout(playTimerRef.current);
 
+    // reset audio
     if (mainAudioRef.current) {
       mainAudioRef.current.pause();
       mainAudioRef.current.currentTime = 0;
@@ -258,7 +249,7 @@ export default function STYPlayer() {
 
     setSectionsAvailability({});
 
-    // NEW: set base tempo/tempo from beat if available
+    // tempo de base
     const newBase = beat?.tempo || 120;
     baseTempoRef.current = newBase;
     setTempo(newBase);
@@ -273,7 +264,6 @@ export default function STYPlayer() {
 
       if (prepareAllResp.data.sections) {
         setSectionsAvailability(prepareAllResp.data.sections);
-        console.log('Sections détectées:', prepareAllResp.data.sections);
       } else {
         setSectionsAvailability({});
         console.warn('Aucune section détectée par prepare-all');
@@ -287,7 +277,7 @@ export default function STYPlayer() {
     }
   };
 
-  // --- Play a specific section ---
+  // Lecture d’une section
   const playSection = async (sectionName) => {
     if (!selectedBeat) return;
     if (!sectionsAvailability || sectionsAvailability[sectionName] !== 1) {
@@ -297,48 +287,38 @@ export default function STYPlayer() {
 
     const beatId = selectedBeat.id;
     const url = getSupabaseWavUrl(beatId, sectionName);
+    const mainEl = mainAudioRef.current;
+    const oneEl = oneShotAudioRef.current;
 
-    // If it's a Main -> loop on mainAudio
+    // Main => boucle
     if (/^Main\s[ABCD]$/i.test(sectionName)) {
-      if (oneShotAudioRef.current && !oneShotAudioRef.current.paused) {
-        oneShotAudioRef.current.pause();
-        oneShotAudioRef.current.currentTime = 0;
+      if (oneEl && !oneEl.paused) {
+        oneEl.pause();
+        oneEl.currentTime = 0;
       }
-
-      const mainEl = mainAudioRef.current;
       if (!mainEl) return;
       mainEl.src = url;
       mainEl.loop = true;
       mainEl.preload = 'auto';
-      try {
-        await mainEl.play();
-        setControls((prev) => ({ ...prev, play: true }));
-      } catch (err) {
-        console.error('Impossible de jouer le main:', err);
-        throw err;
-      }
+      await mainEl.play().catch((e)=>console.error('play main error',e));
+
       const m = sectionName.split(' ')[1];
-      setControls((prev) => ({ ...prev, main: m }));
+      setControls((prev) => ({ ...prev, play: true, main: m }));
       setMainBlinking(m);
       setTimeout(() => setMainBlinking(null), 2000);
       return;
     }
 
     // One-shot (Intro / Ending / Fill In)
-    const oneEl = oneShotAudioRef.current;
     if (!oneEl) return;
-
-    const mainEl = mainAudioRef.current;
     const wasMainPlaying = mainEl && !mainEl.paused && mainEl.currentSrc;
-
     if (wasMainPlaying) {
-      try { mainEl.pause(); } catch (e) { console.warn('pause main failed', e); }
+      try { mainEl.pause(); } catch (e) { /* noop */ }
     }
 
     oneEl.src = url;
     oneEl.loop = false;
     oneEl.preload = 'auto';
-
     try {
       await oneEl.play();
       setControls((prev) => ({ ...prev, play: true }));
@@ -351,6 +331,7 @@ export default function STYPlayer() {
     const onEnded = async () => {
       oneEl.removeEventListener('ended', onEnded);
 
+      // Après Intro/Ending => reprendre Main courant
       if (/^Intro\s[ABCD]$/i.test(sectionName) || /^Ending\s[ABCD]$/i.test(sectionName)) {
         const mainLetter = controls.main || 'A';
         const mainUrl = getSupabaseWavUrl(beatId, `Main ${mainLetter}`);
@@ -368,6 +349,7 @@ export default function STYPlayer() {
         return;
       }
 
+      // Après Fill In X→X => basculer vers Main X
       const fillMatch = sectionName.match(/^Fill In\s([A-D])\1$/i);
       if (fillMatch) {
         const newMain = fillMatch[1].toUpperCase();
@@ -387,32 +369,30 @@ export default function STYPlayer() {
         return;
       }
 
-      if (mainEl) {
-        try {
-          await mainEl.play();
-          setControls((prev) => ({ ...prev, play: true }));
-        } catch (e) {
-          setControls((prev) => ({ ...prev, play: false }));
-        }
+      // Sinon, si un Main était en cours avant, le reprendre
+      if (wasMainPlaying && mainEl) {
+        try { await mainEl.play(); } catch { /* noop */ }
+        setControls((prev) => ({ ...prev, play: true }));
       }
     };
 
     oneEl.addEventListener('ended', onEnded);
   };
 
-  // toggle play
+  // Play/Pause
   const togglePlay = async () => {
     if (!selectedBeat || isLoading) {
       alert('⚠️ Aucun beat sélectionné ou chargement en cours.');
       return;
     }
 
+    // Si on est en lecture => STOP
     if (controls.play) {
-      if (oneShotAudioRef.current && !oneShotAudioRef.current.paused) {
+      if (oneShotAudioRef.current) {
         oneShotAudioRef.current.pause();
         oneShotAudioRef.current.currentTime = 0;
       }
-      if (mainAudioRef.current && !mainAudioRef.current.paused) {
+      if (mainAudioRef.current) {
         mainAudioRef.current.pause();
         mainAudioRef.current.currentTime = 0;
       }
@@ -422,6 +402,7 @@ export default function STYPlayer() {
       return;
     }
 
+    // Sinon => démarrer à partir de la section active (Intro > Main > Ending)
     let sectionToPlay = null;
     if (controls.intro) sectionToPlay = `Intro ${controls.intro}`;
     else if (controls.main) sectionToPlay = `Main ${controls.main}`;
@@ -432,10 +413,11 @@ export default function STYPlayer() {
       return;
     }
     if (!sectionsAvailability[sectionToPlay]) {
-      const fallback = Object.keys(sectionsAvailability).find((k) => /^Main\s[ABCD]$/i.test(k) && sectionsAvailability[k] === 1);
-      if (fallback) sectionToPlay = fallback; else { alert('Aucune section disponible à jouer.'); return; }
+      const fallback = Object.keys(sectionsAvailability)
+        .find((k) => /^Main\s[ABCD]$/i.test(k) && sectionsAvailability[k] === 1);
+      if (fallback) sectionToPlay = fallback;
+      else { alert('Aucune section disponible à jouer.'); return; }
     }
-
     try {
       await playSection(sectionToPlay);
     } catch (err) {
@@ -444,6 +426,23 @@ export default function STYPlayer() {
       setControls((prev) => ({ ...prev, play: false }));
     }
   };
+
+  // Toujours garder une ref vers la dernière version de togglePlay (pour le keydown global)
+  useEffect(() => { togglePlayRef.current = togglePlay; });
+
+  // Espace = Play/Pause (avec garde pour inputs/textarea/contentEditable)
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      const tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
+      const isEditable = e.target && (e.target.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA');
+      if ((e.code === 'Space' || e.key === ' ') && !e.repeat && !isEditable) {
+        e.preventDefault();
+        if (togglePlayRef.current) togglePlayRef.current();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   const handleControlClick = (type, value = null) => {
     if (!type) return;
@@ -492,8 +491,8 @@ export default function STYPlayer() {
     if (type === 'play') { togglePlay(); return; }
   };
 
-  // pagination helpers
-  const currentPageBeats = beats.slice(page * 10, (page + 1) * 10);
+  // Pagination (utilise page si tu ajoutes des boutons Prev/Next)
+  const currentPageBeats = beats.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
   const leftColumn = currentPageBeats.slice(0, 5);
   const rightColumn = currentPageBeats.slice(5);
 
@@ -554,20 +553,20 @@ export default function STYPlayer() {
 
   return (
     <div className="min-h-screen bg-[#1a1a1a] text-white p-6 select-none">
-      {/* Deux balises audio cachées */}
+      {/* Audio caché */}
       <audio ref={mainAudioRef} hidden />
       <audio ref={oneShotAudioRef} hidden />
       <h1 className="text-3xl font-bold text-center mb-4">🎧 PSR MANAGER STYLE</h1>
 
       {/* ─────────────────────────────────────────────────────────────
-         RÉPÉTEUR (écran des styles) avec KNOBS aux extrémités
-         - Knob VOLUME (gauche) fixe (≈160px)
-         - Zone centrale un peu plus large (grandit légèrement)
-         - Knob TEMPO (droite) fixe (≈160px)
-         - Sur petits écrans, empilement vertical
+         KNOBS aux extrémités + écran central légèrement élargi
+         - Knob VOLUME (gauche) compact (≈160px)
+         - Zone centrale : un peu plus large (sans devenir énorme)
+         - Knob TEMPO (droite) compact (≈160px)
+         - Sur petits écrans : empilement vertical
          ───────────────────────────────────────────────────────────── */}
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-stretch md:justify-between gap-4 mb-6">
-        {/* LEFT: VOLUME knob (compact, fixé) */}
+        {/* LEFT: VOLUME */}
         <div className="md:w-[160px] w-full bg-[#2a2a2a] rounded-xl p-4 grid place-items-center">
           <Knob
             label="VOLUME"
@@ -580,7 +579,7 @@ export default function STYPlayer() {
           />
         </div>
 
-        {/* CENTER: Liste des beats — légèrement plus large, sans être énorme */}
+        {/* CENTER: Répéteur (2 colonnes en grand écran) */}
         <div
           className="
             flex-1
@@ -590,18 +589,22 @@ export default function STYPlayer() {
           "
         >
           <div className="bg-[#2a2a2a] p-4 rounded-xl shadow-inner">
-            {leftColumn.length === 0
-              ? <p className="text-gray-400 text-center">Aucun beat disponible</p>
-              : leftColumn.map(renderBeatCard)}
+            {leftColumn.length === 0 ? (
+              <p className="text-gray-400 text-center">Aucun beat disponible</p>
+            ) : (
+              leftColumn.map(renderBeatCard)
+            )}
           </div>
           <div className="bg-[#2a2a2a] p-4 rounded-xl shadow-inner">
-            {rightColumn.length === 0
-              ? <p className="text-gray-400 text-center">Rien à afficher</p>
-              : rightColumn.map(renderBeatCard)}
+            {rightColumn.length === 0 ? (
+              <p className="text-gray-400 text-center">Rien à afficher</p>
+            ) : (
+              rightColumn.map(renderBeatCard)
+            )}
           </div>
         </div>
 
-        {/* RIGHT: TEMPO knob (compact, fixé) */}
+        {/* RIGHT: TEMPO */}
         <div className="md:w-[160px] w-full bg-[#2a2a2a] rounded-xl p-4 grid place-items-center">
           <Knob
             label="TEMPO"
@@ -636,6 +639,7 @@ export default function STYPlayer() {
               return renderButton('ending', `END ${i}`, controls.ending === i && enabled, () => handleControlClick('ending', i), false, !enabled);
             })}
 
+            {/* PLAY/STOP */}
             <div className="flex flex-col items-center cursor-pointer" onClick={() => handleControlClick('play')}>
               <div
                 className={`w-8 h-2 mb-1 rounded-sm ${
@@ -651,6 +655,7 @@ export default function STYPlayer() {
               </button>
             </div>
           </div>
+          <p className="text-xs text-gray-400 mt-2">Astuce : appuyez sur <span className="font-semibold">Espace</span> pour Play/Pause.</p>
         </div>
       )}
 
