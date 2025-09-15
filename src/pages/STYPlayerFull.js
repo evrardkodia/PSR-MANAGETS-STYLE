@@ -1,9 +1,9 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Simple, dependency‑free rotary knob (SVG)
+// Simple, dependency-free rotary knob (SVG)
 // - Drag vertically or use mouse wheel to change value
 // - Keyboard: ArrowUp/Down (±step), PageUp/PageDown (±5*step), Home/End (min/max)
 // ──────────────────────────────────────────────────────────────────────────────
@@ -166,7 +166,7 @@ export default function STYPlayer() {
     return `https://swtbkiudmfvnywcgpzfe.supabase.co/storage/v1/object/public/midiAndWav/${beatId}/${filename}`;
   };
 
-  // Playback side‑effects: apply volume & tempo
+  // Playback side-effects: apply volume & tempo
   useEffect(() => {
     const v = Math.max(0, Math.min(1, volume / 100));
     if (mainAudioRef.current) mainAudioRef.current.volume = v;
@@ -324,7 +324,7 @@ export default function STYPlayer() {
       return;
     }
 
-    // One‑shot (Intro / Ending / Fill In)
+    // One-shot (Intro / Ending / Fill In)
     const oneEl = oneShotAudioRef.current;
     if (!oneEl) return;
 
@@ -482,7 +482,9 @@ export default function STYPlayer() {
       const sectionName = `${type.charAt(0).toUpperCase() + type.slice(1)} ${letter}`;
       if (sectionsAvailability[sectionName] !== 1) return;
       playSection(sectionName);
-      setControls((prev) => (type === 'intro' ? { ...prev, intro: letter, ending: '' } : { ...prev, ending: letter, intro: '' }));
+      setControls((prev) =>
+        type === 'intro' ? { ...prev, intro: letter, ending: '' } : { ...prev, ending: letter, intro: '' }
+      );
       return;
     }
 
@@ -491,7 +493,7 @@ export default function STYPlayer() {
   };
 
   // pagination helpers
-  const currentPageBeats = beats.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
+  const currentPageBeats = beats.slice(page * 10, (page + 1) * 10);
   const leftColumn = currentPageBeats.slice(0, 5);
   const rightColumn = currentPageBeats.slice(5);
 
@@ -557,18 +559,16 @@ export default function STYPlayer() {
       <audio ref={oneShotAudioRef} hidden />
       <h1 className="text-3xl font-bold text-center mb-4">🎧 PSR MANAGER STYLE</h1>
 
-      {/*
-        ─────────────────────────────────────────────────────────────
-        RÉPÉTEUR (Écran des styles) avec KNOBS de part et d'autre
-        - Knob VOLUME à gauche
-        - Grille des styles au centre
-        - Knob TEMPO à droite
-        Sur petits écrans, les knobs passent au dessus/dessous.
-        ─────────────────────────────────────────────────────────────
-      */}
-      <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-stretch gap-4 mb-6">
-        {/* LEFT: VOLUME knob */}
-        <div className="md:w-[180px] w-full bg-[#2a2a2a] rounded-xl p-4 grid place-items-center">
+      {/* ─────────────────────────────────────────────────────────────
+         RÉPÉTEUR (écran des styles) avec KNOBS aux extrémités
+         - Knob VOLUME (gauche) fixe (≈160px)
+         - Zone centrale un peu plus large (grandit légèrement)
+         - Knob TEMPO (droite) fixe (≈160px)
+         - Sur petits écrans, empilement vertical
+         ───────────────────────────────────────────────────────────── */}
+      <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-stretch md:justify-between gap-4 mb-6">
+        {/* LEFT: VOLUME knob (compact, fixé) */}
+        <div className="md:w-[160px] w-full bg-[#2a2a2a] rounded-xl p-4 grid place-items-center">
           <Knob
             label="VOLUME"
             min={0}
@@ -580,18 +580,29 @@ export default function STYPlayer() {
           />
         </div>
 
-        {/* CENTER: Répéteur / Liste des beats en 2 colonnes */}
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* CENTER: Liste des beats — légèrement plus large, sans être énorme */}
+        <div
+          className="
+            flex-1
+            md:basis-[720px]
+            md:max-w-[calc(100%-320px-1rem)]
+            grid grid-cols-1 lg:grid-cols-2 gap-4
+          "
+        >
           <div className="bg-[#2a2a2a] p-4 rounded-xl shadow-inner">
-            {leftColumn.length === 0 ? <p className="text-gray-400 text-center">Aucun beat disponible</p> : leftColumn.map(renderBeatCard)}
+            {leftColumn.length === 0
+              ? <p className="text-gray-400 text-center">Aucun beat disponible</p>
+              : leftColumn.map(renderBeatCard)}
           </div>
           <div className="bg-[#2a2a2a] p-4 rounded-xl shadow-inner">
-            {rightColumn.length === 0 ? <p className="text-gray-400 text-center">Rien à afficher</p> : rightColumn.map(renderBeatCard)}
+            {rightColumn.length === 0
+              ? <p className="text-gray-400 text-center">Rien à afficher</p>
+              : rightColumn.map(renderBeatCard)}
           </div>
         </div>
 
-        {/* RIGHT: TEMPO knob */}
-        <div className="md:w-[180px] w-full bg-[#2a2a2a] rounded-xl p-4 grid place-items-center">
+        {/* RIGHT: TEMPO knob (compact, fixé) */}
+        <div className="md:w-[160px] w-full bg-[#2a2a2a] rounded-xl p-4 grid place-items-center">
           <Knob
             label="TEMPO"
             min={40}
