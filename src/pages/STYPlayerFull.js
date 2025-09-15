@@ -2,9 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Knob : bouton rotatif simple (drag vertical, molette, clavier)
-// ──────────────────────────────────────────────────────────────────────────────
+/* ──────────────────────────────────────────────────────────────
+   Knob simple (drag vertical, molette, clavier)
+   ────────────────────────────────────────────────────────────── */
 function Knob({ label, min=0, max=100, step=1, value, onChange, caption }) {
   const clamp = (v) => Math.min(max, Math.max(min, v));
   const pct = (value - min) / (max - min);
@@ -16,7 +16,7 @@ function Knob({ label, min=0, max=100, step=1, value, onChange, caption }) {
 
   const setFromDelta = (dy) => {
     const range = max - min;
-    const delta = -(dy / 100) * range;     // drag vers le haut => augmente
+    const delta = -(dy / 100) * range;
     const raw = startVal.current + delta;
     const stepped = Math.round(raw / step) * step;
     onChange(clamp(stepped));
@@ -74,7 +74,6 @@ function Knob({ label, min=0, max=100, step=1, value, onChange, caption }) {
         onWheel={onWheel}
         className="w-28 h-28 rounded-full bg-[#2b2b2b] shadow-inner border border-black/30 relative grid place-items-center cursor-grab active:cursor-grabbing"
       >
-        {/* Cadran */}
         <svg width="84" height="84" viewBox="0 0 84 84">
           <defs>
             <linearGradient id="g" x1="0" x2="0" y1="0" y2="1">
@@ -82,21 +81,19 @@ function Knob({ label, min=0, max=100, step=1, value, onChange, caption }) {
               <stop offset="100%" stopColor="#1f1f1f" />
             </linearGradient>
           </defs>
-          <circle cx="42" cy="42" r="36" fill="url(#g)" stroke="#111" strokeWidth="2" />
-          {/* Ticks */}
-          {[...Array(11)].map((_, i) => {
-            const a = (-135 + (270 * i) / 10) * (Math.PI / 180);
-            const x1 = 42 + Math.cos(a) * 28;
-            const y1 = 42 + Math.sin(a) * 28;
-            const x2 = 42 + Math.cos(a) * 34;
-            const y2 = 42 + Math.sin(a) * 34;
-            return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#666" strokeWidth="2" />;
-          })}
-          {/* Aiguille */}
-          <g transform={`rotate(${angle} 42 42)`}>
-            <line x1="42" y1="42" x2="42" y2="14" stroke="#f59e0b" strokeWidth="4" strokeLinecap="round" />
-            <circle cx="42" cy="42" r="5" fill="#0f0f0f" stroke="#f59e0b" />
-          </g>
+        <circle cx="42" cy="42" r="36" fill="url(#g)" stroke="#111" strokeWidth="2" />
+        {[...Array(11)].map((_, i) => {
+          const a = (-135 + (270 * i) / 10) * (Math.PI / 180);
+          const x1 = 42 + Math.cos(a) * 28;
+          const y1 = 42 + Math.sin(a) * 28;
+          const x2 = 42 + Math.cos(a) * 34;
+          const y2 = 42 + Math.sin(a) * 34;
+          return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#666" strokeWidth="2" />;
+        })}
+        <g transform={`rotate(${angle} 42 42)`}>
+          <line x1="42" y1="42" x2="42" y2="14" stroke="#f59e0b" strokeWidth="4" strokeLinecap="round" />
+          <circle cx="42" cy="42" r="5" fill="#0f0f0f" stroke="#f59e0b" />
+        </g>
         </svg>
         <div className="absolute bottom-1 text-xs text-gray-300">{Math.round(value)}</div>
       </div>
@@ -112,25 +109,26 @@ export default function STYPlayer() {
   const [sectionsAvailability, setSectionsAvailability] = useState({});
   const [page, setPage] = useState(0);
   const [controls, setControls] = useState({
-    acmp: false,
-    intro: '',
-    main: 'A',
-    ending: '',
-    play: false,
+    acmp:false,
+    intro:'',
+    main:'A',
+    ending:'',
+    play:false,
   });
   const [mainBlinking, setMainBlinking] = useState(null);
   const [playColor, setPlayColor] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Volume (0..100) & Tempo (BPM)
   const [volume, setVolume] = useState(80);
   const [tempo, setTempo] = useState(120);
   const baseTempoRef = useRef(120);
 
-  // Audio
-  const mainAudioRef = useRef(null);     // boucle (Main A/B/C/D)
-  const oneShotAudioRef = useRef(null);  // one-shots (Intro / Ending / Fill)
-  const togglePlayRef = useRef(null);    // pour la barre d'espace
+  // Audio + état courant impératif
+  const mainAudioRef = useRef(null);
+  const oneShotAudioRef = useRef(null);
+  const currentMainRef = useRef('A');             // lettre Main courante
+  const sessionRef = useRef(0);                   // playSessionId (anti callbacks fantômes)
+  const togglePlayRef = useRef(null);             // pour la barre d'espace
 
   const playTimerRef = useRef(null);
   const blinkStepIndex = useRef(0);
@@ -138,30 +136,24 @@ export default function STYPlayer() {
   const ITEMS_PER_PAGE = 10;
 
   const blinkSequence = [
-    { color: 'blue', duration: 100 },
-    { color: null, duration: 500 },
-    { color: 'orange', duration: 100 },
-    { color: null, duration: 500 },
-    { color: 'orange', duration: 100 },
-    { color: null, duration: 500 },
-    { color: 'orange', duration: 100 },
-    { color: null, duration: 500 },
+    { color: 'blue', duration: 100 }, { color: null, duration: 500 },
+    { color: 'orange', duration: 100 }, { color: null, duration: 500 },
+    { color: 'orange', duration: 100 }, { color: null, duration: 500 },
+    { color: 'orange', duration: 100 }, { color: null, duration: 500 },
   ];
 
-  // URL Supabase
   const getSupabaseWavUrl = (beatId, sectionName) => {
     const filename = `${beatId}_${sectionName.replace(/ /g, '_')}.wav`;
     return `https://swtbkiudmfvnywcgpzfe.supabase.co/storage/v1/object/public/midiAndWav/${beatId}/${filename}`;
   };
 
-  // Volume
+  /* ─────────── Volume & Tempo ─────────── */
   useEffect(() => {
     const v = Math.max(0, Math.min(1, volume / 100));
     if (mainAudioRef.current) mainAudioRef.current.volume = v;
     if (oneShotAudioRef.current) oneShotAudioRef.current.volume = v;
   }, [volume]);
 
-  // Tempo
   useEffect(() => {
     const base = baseTempoRef.current || 120;
     const rate = Math.max(0.25, Math.min(4, tempo / base));
@@ -169,7 +161,7 @@ export default function STYPlayer() {
     if (oneShotAudioRef.current) oneShotAudioRef.current.playbackRate = rate;
   }, [tempo]);
 
-  // Blink Play
+  /* ─────────── Blink Play ─────────── */
   useEffect(() => {
     if (controls.play) {
       blinkStepIndex.current = 0;
@@ -189,25 +181,86 @@ export default function STYPlayer() {
     return () => clearTimeout(playTimerRef.current);
   }, [controls.play]);
 
-  // Charger beats
+  /* ─────────── Charger beats ─────────── */
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) { navigate('/auth'); return; }
-    axios.get('/api/beats', { headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => setBeats(res.data.beats.sort((a,b)=>a.title.localeCompare(b.title))))
-      .catch(() => navigate('/auth'));
+    axios.get('/api/beats', { headers:{ Authorization:`Bearer ${token}` } })
+      .then(res => setBeats(res.data.beats.sort((a,b)=>a.title.localeCompare(b.title))))
+      .catch(()=>navigate('/auth'));
   }, [navigate]);
 
-  // Cleanup unmount
+  /* ─────────── Cleanup ─────────── */
   useEffect(() => {
     return () => {
-      if (mainAudioRef.current) { mainAudioRef.current.pause(); mainAudioRef.current.src=''; }
-      if (oneShotAudioRef.current) { oneShotAudioRef.current.pause(); oneShotAudioRef.current.src=''; oneShotAudioRef.current.onended=null; }
+      if (mainAudioRef.current) { mainAudioRef.current.pause(); mainAudioRef.current.src=''; mainAudioRef.current.load(); }
+      if (oneShotAudioRef.current) { oneShotAudioRef.current.onended=null; oneShotAudioRef.current.pause(); oneShotAudioRef.current.src=''; oneShotAudioRef.current.load(); }
       clearTimeout(playTimerRef.current);
+      sessionRef.current++; // invalide toute tâche asynchrone restante
     };
   }, []);
 
-  // Sélection beat
+  /* ─────────── Helpers audio ─────────── */
+  const startNewSession = () => (++sessionRef.current);      // renvoie l'ID courant
+  const getSession = () => sessionRef.current;
+
+  const playMainLoop = async (beatId, letter) => {
+    const mainEl = mainAudioRef.current;
+    const oneEl = oneShotAudioRef.current;
+    if (!mainEl) return;
+
+    // coupe tout one-shot
+    if (oneEl) { oneEl.onended = null; oneEl.pause(); oneEl.currentTime = 0; oneEl.src=''; oneEl.load(); }
+
+    const url = getSupabaseWavUrl(beatId, `Main ${letter}`);
+    mainEl.src = url;
+    mainEl.loop = true;
+    mainEl.preload = 'auto';
+    mainEl.currentTime = 0;
+    try { await mainEl.play(); } catch(e){ console.error('play main error', e); }
+
+    currentMainRef.current = letter;
+    setControls((p)=>({ ...p, play:true, main:letter }));
+    setMainBlinking(letter);
+    setTimeout(()=>setMainBlinking(null), 1500);
+  };
+
+  const playOneShotThenResumeMain = async (beatId, sectionName) => {
+    const oneEl = oneShotAudioRef.current;
+    const mainEl = mainAudioRef.current;
+    if (!oneEl || !mainEl) return;
+    const sid = getSession(); // capture l'ID au moment du lancement
+
+    // suspend la boucle main
+    try { mainEl.pause(); } catch {}
+
+    // configure one-shot
+    oneEl.onended = null;
+    oneEl.src = getSupabaseWavUrl(beatId, sectionName);
+    oneEl.loop = false;
+    oneEl.preload = 'auto';
+    try {
+      await oneEl.play();
+      setControls((p)=>({ ...p, play:true }));
+    } catch (err) {
+      console.error('oneshot play error', err);
+      // si erreur, reprendre la boucle
+      if (sessionRef.current === sid) {
+        const letter = currentMainRef.current || 'A';
+        playMainLoop(beatId, letter);
+      }
+      return;
+    }
+
+    // à la fin, si la session est toujours valide, reprendre Main courant
+    oneEl.onended = async () => {
+      if (sessionRef.current !== sid) return;        // session invalide → ne rien faire
+      const letter = currentMainRef.current || 'A';
+      await playMainLoop(beatId, letter);            // reprends la boucle strictement
+    };
+  };
+
+  /* ─────────── Sélection beat ─────────── */
   const handleSelectBeat = async (beat) => {
     if (isLoading) return;
     setIsLoading(true);
@@ -215,41 +268,27 @@ export default function STYPlayer() {
 
     // reset UI
     setControls({ acmp:false, intro:'', main:'A', ending:'', play:false });
+    currentMainRef.current = 'A';
     setMainBlinking(null);
     setPlayColor(null);
     clearTimeout(playTimerRef.current);
 
-    // reset audio
-    if (mainAudioRef.current) {
-      mainAudioRef.current.pause();
-      mainAudioRef.current.currentTime = 0;
-      mainAudioRef.current.removeAttribute('src');
-      mainAudioRef.current.load();
-    }
-    if (oneShotAudioRef.current) {
-      oneShotAudioRef.current.onended = null;   // IMPORTANT: pas de reprise auto après stop
-      oneShotAudioRef.current.pause();
-      oneShotAudioRef.current.currentTime = 0;
-      oneShotAudioRef.current.removeAttribute('src');
-      oneShotAudioRef.current.load();
-    }
+    // stop audio + purge handlers/sources
+    if (mainAudioRef.current) { mainAudioRef.current.pause(); mainAudioRef.current.currentTime=0; mainAudioRef.current.src=''; mainAudioRef.current.load(); }
+    if (oneShotAudioRef.current) { oneShotAudioRef.current.onended=null; oneShotAudioRef.current.pause(); oneShotAudioRef.current.currentTime=0; oneShotAudioRef.current.src=''; oneShotAudioRef.current.load(); }
+    startNewSession(); // invalide toute ancienne fin de one-shot
 
-    setSectionsAvailability({});
-
+    // tempo de base
     const newBase = beat?.tempo || 120;
     baseTempoRef.current = newBase;
     setTempo(newBase);
 
     try {
       const token = localStorage.getItem('token');
-      const prepareAllResp = await axios.post(
-        '/api/player/prepare-all',
-        { beatId: beat.id },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setSectionsAvailability(prepareAllResp.data.sections || {});
-    } catch (err) {
-      console.error('❌ Préparation du beat échouée :', err);
+      const r = await axios.post('/api/player/prepare-all', { beatId: beat.id }, { headers:{ Authorization:`Bearer ${token}` } });
+      setSectionsAvailability(r.data.sections || {});
+    } catch (e) {
+      console.error('prepare-all failed', e);
       alert('❌ Échec de la préparation du beat');
       setSectionsAvailability({});
     } finally {
@@ -257,72 +296,7 @@ export default function STYPlayer() {
     }
   };
 
-  // Lecture d'une section
-  const playSection = async (sectionName) => {
-    if (!selectedBeat) return;
-    if (!sectionsAvailability || sectionsAvailability[sectionName] !== 1) {
-      console.warn('Section non disponible:', sectionName);
-      return;
-    }
-
-    const beatId = selectedBeat.id;
-    const url = getSupabaseWavUrl(beatId, sectionName);
-    const mainEl = mainAudioRef.current;
-    const oneEl = oneShotAudioRef.current;
-
-    // MAIN => boucle infinie stricte
-    if (/^Main\s[ABCD]$/i.test(sectionName)) {
-      if (oneEl) { oneEl.onended = null; oneEl.pause(); oneEl.currentTime = 0; }  // coupe tout one-shot
-      if (!mainEl) return;
-      mainEl.src = url;
-      mainEl.loop = true;           // ← boucle infinie
-      mainEl.preload = 'auto';
-      try { await mainEl.play(); } catch(e){ console.error('play main error', e); }
-      const m = sectionName.split(' ')[1];
-      setControls((p)=>({ ...p, play:true, main:m }));
-      setMainBlinking(m); setTimeout(()=>setMainBlinking(null),2000);
-      return;
-    }
-
-    // ONE-SHOT (Intro/Ending/Fill) joué manuellement
-    if (!oneEl) return;
-    if (mainEl) { try { mainEl.pause(); } catch {} }
-
-    oneEl.onended = null;           // supprime un ancien handler
-    oneEl.src = url;
-    oneEl.loop = false;
-    oneEl.preload = 'auto';
-    try {
-      await oneEl.play();
-      setControls((p)=>({ ...p, play:true }));
-    } catch (err) {
-      console.error('Impossible de jouer one-shot:', err);
-      // si erreur et qu'un main existait, tenter de reprendre
-      if (mainEl && mainEl.src) mainEl.play().catch(()=>{});
-      return;
-    }
-
-    // À la fin d'un one-shot, on reprend le MAIN courant en boucle
-    oneEl.onended = async () => {
-      if (!mainEl) return;
-      const mainLetter = (controls.main || 'A');
-      const mainUrl = getSupabaseWavUrl(beatId, `Main ${mainLetter}`);
-      oneEl.onended = null; // évite tout déclenchement résiduel
-      mainEl.src = mainUrl;
-      mainEl.loop = true;
-      mainEl.preload = 'auto';
-      mainEl.currentTime = 0;
-      try {
-        await mainEl.play();
-        setControls((p)=>({ ...p, play:true }));
-      } catch (e) {
-        console.error('unable to resume main after oneshot', e);
-        setControls((p)=>({ ...p, play:false }));
-      }
-    };
-  };
-
-  // Play/Pause (Espace ou bouton)
+  /* ─────────── Play/Pause ─────────── */
   const togglePlay = async () => {
     if (!selectedBeat || isLoading) {
       alert('⚠️ Aucun beat sélectionné ou chargement en cours.');
@@ -331,14 +305,19 @@ export default function STYPlayer() {
 
     // STOP
     if (controls.play) {
+      startNewSession(); // invalide callbacks
       if (oneShotAudioRef.current) {
-        oneShotAudioRef.current.onended = null;   // 🔒 coupe le relancement auto
+        oneShotAudioRef.current.onended = null;
         oneShotAudioRef.current.pause();
         oneShotAudioRef.current.currentTime = 0;
+        oneShotAudioRef.current.src = '';
+        oneShotAudioRef.current.load();
       }
       if (mainAudioRef.current) {
         mainAudioRef.current.pause();
         mainAudioRef.current.currentTime = 0;
+        mainAudioRef.current.src = '';
+        mainAudioRef.current.load();
       }
       setControls((p)=>({ ...p, play:false }));
       setPlayColor(null);
@@ -346,21 +325,22 @@ export default function STYPlayer() {
       return;
     }
 
-    // START (STRICT) : toujours démarrer sur Main sélectionné
-    const sectionToPlay = `Main ${controls.main || 'A'}`;
-    if (!sectionsAvailability[sectionToPlay]) {
-      const fb = Object.keys(sectionsAvailability).find(k => /^Main\s[ABCD]$/i.test(k) && sectionsAvailability[k] === 1);
-      if (!fb) { alert('Aucune section Main disponible.'); return; }
-      await playSection(fb);
+    // START — STRICT : démarrer toujours sur Main sélectionné
+    const mainLetter = controls.main || 'A';
+    if (sectionsAvailability[`Main ${mainLetter}`] === 1) {
+      // nouvelle session pour cette lecture
+      startNewSession();
+      await playMainLoop(selectedBeat.id, mainLetter);
     } else {
-      await playSection(sectionToPlay);
+      // fallback: première Main dispo
+      const fb = ['A','B','C','D'].find(L => sectionsAvailability[`Main ${L}`] === 1);
+      if (!fb) { alert('Aucune section Main disponible.'); return; }
+      startNewSession();
+      await playMainLoop(selectedBeat.id, fb);
     }
   };
 
-  // ref pour la barre d'espace
-  useEffect(()=>{ togglePlayRef.current = togglePlay; });
-
-  // Barre d’espace => Play/Pause (sauf champs éditables)
+  useEffect(() => { togglePlayRef.current = togglePlay; });
   useEffect(() => {
     const onKeyDown = (e) => {
       const tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
@@ -374,52 +354,52 @@ export default function STYPlayer() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  // Clicks UI
+  /* ─────────── UI events ─────────── */
   const handleControlClick = (type, value = null) => {
     if (!type) return;
     const letter = value ? String(value).toUpperCase() : '';
 
+    // À l'arrêt
     if (!controls.play) {
       if (type === 'main') {
-        // Quand on choisit un Main à l'arrêt, on nettoie Intro/Ending pour éviter tout one-shot au démarrage
-        setControls((prev) => ({ ...prev, main: letter, intro:'', ending:'' }));
-        setMainBlinking(letter);
-        setTimeout(() => setMainBlinking(null), 1200);
+        setControls((p)=>({ ...p, main:letter, intro:'', ending:'' })); // nettoie one-shots
+        currentMainRef.current = letter;
+        setMainBlinking(letter); setTimeout(()=>setMainBlinking(null), 1200);
         return;
       }
-      if (type === 'intro') { setControls((prev) => ({ ...prev, intro: letter, ending: '' })); return; }
-      if (type === 'ending') { setControls((prev) => ({ ...prev, ending: letter, intro: '' })); return; }
-      if (type === 'acmp') { setControls((prev) => ({ ...prev, acmp: !prev.acmp })); return; }
-      if (type === 'play') { togglePlay(); return; }
+      if (type === 'intro') { setControls((p)=>({ ...p, intro:letter, ending:'' })); return; }
+      if (type === 'ending') { setControls((p)=>({ ...p, ending:letter, intro:'' })); return; }
+      if (type === 'acmp')   { setControls((p)=>({ ...p, acmp:!p.acmp })); return; }
+      if (type === 'play')   { togglePlay(); return; }
       return;
     }
 
+    // En lecture
     if (type === 'main') {
-      const targetMain = letter;
-      if (controls.main === targetMain) return;
-      // STRICT pendant la lecture : on va DIRECTEMENT au Main demandé (pas de Fill auto)
-      playSection(`Main ${targetMain}`);
-      setControls((prev) => ({ ...prev, main: targetMain }));
-      setMainBlinking(targetMain);
-      setTimeout(() => setMainBlinking(null), 1500);
+      if (!letter || currentMainRef.current === letter) return;
+      currentMainRef.current = letter;
+      // STRICT: bascule directe sur le Main demandé
+      playMainLoop(selectedBeat.id, letter);
+      setControls((p)=>({ ...p, main:letter }));
+      setMainBlinking(letter); setTimeout(()=>setMainBlinking(null), 1500);
       return;
     }
 
     if (type === 'intro' || type === 'ending') {
-      const sectionName = `${type.charAt(0).toUpperCase() + type.slice(1)} ${letter}`;
+      // One-shot seulement si cliqué explicitement
+      const sectionName = `${type[0].toUpperCase()+type.slice(1)} ${letter}`;
       if (sectionsAvailability[sectionName] !== 1) return;
-      playSection(sectionName); // one-shot puis reprise Main courant
-      setControls((prev) =>
-        type === 'intro' ? { ...prev, intro: letter, ending: '' } : { ...prev, ending: letter, intro: '' }
-      );
+      // ne pas changer currentMainRef : on reprend le Main courant après
+      playOneShotThenResumeMain(selectedBeat.id, sectionName);
+      setControls((p)=> type==='intro' ? { ...p, intro:letter, ending:'' } : { ...p, ending:letter, intro:'' });
       return;
     }
 
-    if (type === 'acmp') { setControls((prev) => ({ ...prev, acmp: !prev.acmp })); return; }
+    if (type === 'acmp') { setControls((p)=>({ ...p, acmp:!p.acmp })); return; }
     if (type === 'play') { togglePlay(); return; }
   };
 
-  // Pagination (si besoin)
+  /* ─────────── Rendu UI ─────────── */
   const currentPageBeats = beats.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
   const leftColumn = currentPageBeats.slice(0, 5);
   const rightColumn = currentPageBeats.slice(5);
@@ -447,13 +427,7 @@ export default function STYPlayer() {
     </div>
   );
 
-  const getIconPath = (title) => {
-    const iconCount = 10;
-    let sum = 0;
-    for (let i = 0; i < title.length; i++) sum += title.charCodeAt(i);
-    const index = (sum % iconCount) + 1;
-    return `/icons/${index}.png`;
-  };
+  const getIconPath = (title) => `/icons/${(Array.from(title).reduce((s,c)=>s+c.charCodeAt(0),0)%10)+1}.png`;
 
   const renderButton = (type, label, isActive, onClick, isBlinking = false, disabled = false) => {
     let colorClass = 'bg-transparent';
@@ -481,62 +455,27 @@ export default function STYPlayer() {
 
   return (
     <div className="min-h-screen bg-[#1a1a1a] text-white p-6 select-none">
-      {/* Audio caché */}
       <audio ref={mainAudioRef} hidden />
       <audio ref={oneShotAudioRef} hidden />
       <h1 className="text-3xl font-bold text-center mb-4">🎧 PSR MANAGER STYLE</h1>
 
-      {/* Knobs aux extrémités + centre un peu élargi */}
+      {/* knobs aux extrémités + centre élargi légèrement */}
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-stretch md:justify-between gap-4 mb-6">
-        {/* LEFT: VOLUME */}
         <div className="md:w-[160px] w-full bg-[#2a2a2a] rounded-xl p-4 grid place-items-center">
-          <Knob
-            label="VOLUME"
-            min={0}
-            max={100}
-            step={1}
-            value={volume}
-            caption={`${Math.round(volume)}%`}
-            onChange={setVolume}
-          />
+          <Knob label="VOLUME" min={0} max={100} step={1} value={volume} caption={`${Math.round(volume)}%`} onChange={setVolume} />
         </div>
 
-        {/* CENTER: Répéteur (2 colonnes en grand écran) */}
-        <div
-          className="
-            flex-1
-            md:basis-[720px]
-            md:max-w-[calc(100%-320px-1rem)]
-            grid grid-cols-1 lg:grid-cols-2 gap-4
-          "
-        >
+        <div className="flex-1 md:basis-[720px] md:max-w-[calc(100%-320px-1rem)] grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="bg-[#2a2a2a] p-4 rounded-xl shadow-inner">
-            {leftColumn.length === 0 ? (
-              <p className="text-gray-400 text-center">Aucun beat disponible</p>
-            ) : (
-              leftColumn.map(renderBeatCard)
-            )}
+            {leftColumn.length === 0 ? <p className="text-gray-400 text-center">Aucun beat disponible</p> : leftColumn.map(renderBeatCard)}
           </div>
           <div className="bg-[#2a2a2a] p-4 rounded-xl shadow-inner">
-            {rightColumn.length === 0 ? (
-              <p className="text-gray-400 text-center">Rien à afficher</p>
-            ) : (
-              rightColumn.map(renderBeatCard)
-            )}
+            {rightColumn.length === 0 ? <p className="text-gray-400 text-center">Rien à afficher</p> : rightColumn.map(renderBeatCard)}
           </div>
         </div>
 
-        {/* RIGHT: TEMPO */}
         <div className="md:w-[160px] w-full bg-[#2a2a2a] rounded-xl p-4 grid place-items-center">
-          <Knob
-            label="TEMPO"
-            min={40}
-            max={240}
-            step={1}
-            value={tempo}
-            caption={`${Math.round(tempo)} BPM`}
-            onChange={setTempo}
-          />
+          <Knob label="TEMPO" min={40} max={240} step={1} value={tempo} caption={`${Math.round(tempo)} BPM`} onChange={setTempo} />
         </div>
       </div>
 
@@ -545,38 +484,31 @@ export default function STYPlayer() {
           <div className="flex flex-nowrap overflow-x-auto justify-center gap-2 mt-6 bg-[#1c1c1c] p-3 rounded-lg">
             {renderButton('acmp', 'ACMP', controls.acmp, () => handleControlClick('acmp'))}
 
-            {['A', 'B', 'C', 'D'].map((i) => {
+            {['A','B','C','D'].map((i) => {
               const enabled = sectionsAvailability[`Intro ${i}`] === 1;
               return renderButton('intro', `INTRO ${i}`, controls.intro === i && enabled, () => handleControlClick('intro', i), false, !enabled);
             })}
 
-            {['A', 'B', 'C', 'D'].map((m) => {
+            {['A','B','C','D'].map((m) => {
               const enabled = sectionsAvailability[`Main ${m}`] === 1;
               return renderButton('main', m, controls.main === m && enabled, () => handleControlClick('main', m), mainBlinking === m, !enabled);
             })}
 
-            {['A', 'B', 'C', 'D'].map((i) => {
+            {['A','B','C','D'].map((i) => {
               const enabled = sectionsAvailability[`Ending ${i}`] === 1 || sectionsAvailability[`End ${i}`] === 1;
               return renderButton('ending', `END ${i}`, controls.ending === i && enabled, () => handleControlClick('ending', i), false, !enabled);
             })}
 
-            {/* PLAY/STOP */}
             <div className="flex flex-col items-center cursor-pointer" onClick={() => handleControlClick('play')}>
-              <div
-                className={`w-8 h-2 mb-1 rounded-sm ${
-                  playColor === 'blue' ? 'bg-blue-500 glow' : playColor === 'orange' ? 'bg-orange-400 glow' : 'bg-black'
-                }`}
-              />
-              <button
-                className="text-[10px] bg-gray-300 hover:bg-gray-400 text-black w-16 h-[60px] rounded-md font-bold"
+              <div className={`w-8 h-2 mb-1 rounded-sm ${playColor === 'blue' ? 'bg-blue-500 glow' : playColor === 'orange' ? 'bg-orange-400 glow' : 'bg-black'}`} />
+              <button className="text-[10px] bg-gray-300 hover:bg-gray-400 text-black w-16 h-[60px] rounded-md font-bold"
                 disabled={isLoading}
-                title={isLoading ? 'Chargement en cours...' : controls.play ? 'Arrêter la lecture' : 'Lire le beat'}
-              >
+                title={isLoading ? 'Chargement en cours...' : controls.play ? 'Arrêter la lecture' : 'Lire le beat'}>
                 {isLoading ? '⏳' : controls.play ? '⏹ STOP' : '▶️ PLAY'}
               </button>
             </div>
           </div>
-          <p className="text-xs text-gray-400 mt-2">Astuce : appuyez sur <span className="font-semibold">Espace</span> pour Play/Pause.</p>
+          <p className="text-xs text-gray-400 mt-2">Astuce : <span className="font-semibold">Espace</span> = Play/Pause.</p>
         </div>
       )}
 
