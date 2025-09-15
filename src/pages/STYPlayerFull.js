@@ -113,7 +113,7 @@ export default function STYPlayer() {
   const [page, setPage] = useState(0);
   const [controls, setControls] = useState({
     acmp: false,
-    autofill: false,
+    autofill: false, // ← sert à activer la transition Fill optionnelle
     intro: '',
     main: 'A',
     ending: '',
@@ -290,7 +290,7 @@ export default function STYPlayer() {
     const mainEl = mainAudioRef.current;
     const oneEl = oneShotAudioRef.current;
 
-    // Main => boucle
+    // Main => boucle stricte infinie
     if (/^Main\s[ABCD]$/i.test(sectionName)) {
       if (oneEl && !oneEl.paused) {
         oneEl.pause();
@@ -298,9 +298,13 @@ export default function STYPlayer() {
       }
       if (!mainEl) return;
       mainEl.src = url;
-      mainEl.loop = true;
+      mainEl.loop = true;            // ← boucle infinie
       mainEl.preload = 'auto';
-      await mainEl.play().catch((e)=>console.error('play main error',e));
+      try {
+        await mainEl.play();
+      } catch (e) {
+        console.error('play main error', e);
+      }
 
       const m = sectionName.split(' ')[1];
       setControls((prev) => ({ ...prev, play: true, main: m }));
@@ -313,7 +317,7 @@ export default function STYPlayer() {
     if (!oneEl) return;
     const wasMainPlaying = mainEl && !mainEl.paused && mainEl.currentSrc;
     if (wasMainPlaying) {
-      try { mainEl.pause(); } catch (e) { /* noop */ }
+      try { mainEl.pause(); } catch { /* noop */ }
     }
 
     oneEl.src = url;
@@ -331,7 +335,7 @@ export default function STYPlayer() {
     const onEnded = async () => {
       oneEl.removeEventListener('ended', onEnded);
 
-      // Après Intro/Ending => reprendre Main courant
+      // Après Intro/Ending => reprendre Main courant (boucle)
       if (/^Intro\s[ABCD]$/i.test(sectionName) || /^Ending\s[ABCD]$/i.test(sectionName)) {
         const mainLetter = controls.main || 'A';
         const mainUrl = getSupabaseWavUrl(beatId, `Main ${mainLetter}`);
@@ -349,7 +353,7 @@ export default function STYPlayer() {
         return;
       }
 
-      // Après Fill In X→X => basculer vers Main X
+      // Après Fill In X→X => basculer vers Main X (boucle)
       const fillMatch = sectionName.match(/^Fill In\s([A-D])\1$/i);
       if (fillMatch) {
         const newMain = fillMatch[1].toUpperCase();
@@ -430,7 +434,7 @@ export default function STYPlayer() {
   // Toujours garder une ref vers la dernière version de togglePlay (pour le keydown global)
   useEffect(() => { togglePlayRef.current = togglePlay; });
 
-  // Espace = Play/Pause (avec garde pour inputs/textarea/contentEditable)
+  // Barre d’espace = Play/Pause (avec garde pour inputs/textarea/contentEditable)
   useEffect(() => {
     const onKeyDown = (e) => {
       const tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
@@ -465,12 +469,20 @@ export default function STYPlayer() {
     if (type === 'main') {
       const targetMain = letter;
       if (controls.main === targetMain) return;
-      const fillName = `Fill In ${targetMain}${targetMain}`;
-      if (sectionsAvailability[fillName] === 1) {
-        playSection(fillName);
+
+      // ⚙️ Comportement strict par défaut : pas de Fill auto
+      // Si AUTOFILL est activé, on joue d'abord Fill In XX s'il existe, sinon on va direct au Main.
+      if (controls.autofill) {
+        const fillName = `Fill In ${targetMain}${targetMain}`;
+        if (sectionsAvailability[fillName] === 1) {
+          playSection(fillName); // onEnded basculera vers Main X
+        } else {
+          playSection(`Main ${targetMain}`);
+        }
       } else {
         playSection(`Main ${targetMain}`);
       }
+
       setControls((prev) => ({ ...prev, main: targetMain }));
       setMainBlinking(targetMain);
       setTimeout(() => setMainBlinking(null), 1500);
@@ -560,10 +572,6 @@ export default function STYPlayer() {
 
       {/* ─────────────────────────────────────────────────────────────
          KNOBS aux extrémités + écran central légèrement élargi
-         - Knob VOLUME (gauche) compact (≈160px)
-         - Zone centrale : un peu plus large (sans devenir énorme)
-         - Knob TEMPO (droite) compact (≈160px)
-         - Sur petits écrans : empilement vertical
          ───────────────────────────────────────────────────────────── */}
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-stretch md:justify-between gap-4 mb-6">
         {/* LEFT: VOLUME */}
