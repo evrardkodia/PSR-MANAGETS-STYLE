@@ -1,6 +1,122 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Simple, dependency‑free rotary knob (SVG)
+// - Drag vertically or use mouse wheel to change value
+// - Keyboard: ArrowUp/Down (±step), PageUp/PageDown (±5*step), Home/End (min/max)
+// ──────────────────────────────────────────────────────────────────────────────
+function Knob({
+  label,
+  min = 0,
+  max = 100,
+  step = 1,
+  value,
+  onChange,
+  caption,
+}) {
+  const clamp = (v) => Math.min(max, Math.max(min, v));
+  const pct = (value - min) / (max - min);
+  const angle = -135 + pct * 270; // from -135° to +135°
+  const knobRef = useRef(null);
+  const dragging = useRef(false);
+  const startY = useRef(0);
+  const startVal = useRef(value);
+
+  const setFromDelta = (dy) => {
+    // vertical drag: 100px => full range
+    const range = max - min;
+    const delta = -(dy / 100) * range; // invert (up increases)
+    const raw = startVal.current + delta;
+    const stepped = Math.round(raw / step) * step;
+    onChange(clamp(stepped));
+  };
+
+  const onMouseDown = (e) => {
+    dragging.current = true;
+    startY.current = e.clientY;
+    startVal.current = value;
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp, { once: true });
+  };
+  const onMouseMove = (e) => {
+    if (!dragging.current) return;
+    const dy = e.clientY - startY.current;
+    setFromDelta(dy);
+  };
+  const onMouseUp = () => {
+    dragging.current = false;
+    window.removeEventListener('mousemove', onMouseMove);
+  };
+
+  const onWheel = (e) => {
+    e.preventDefault();
+    const direction = e.deltaY > 0 ? -1 : 1;
+    const next = clamp(value + direction * step);
+    onChange(next);
+  };
+
+  const onKeyDown = (e) => {
+    let next = value;
+    if (e.key === 'ArrowUp') next = value + step;
+    else if (e.key === 'ArrowDown') next = value - step;
+    else if (e.key === 'PageUp') next = value + 5 * step;
+    else if (e.key === 'PageDown') next = value - 5 * step;
+    else if (e.key === 'Home') next = min;
+    else if (e.key === 'End') next = max;
+    if (next !== value) {
+      e.preventDefault();
+      onChange(clamp(next));
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center gap-2 select-none">
+      <div
+        ref={knobRef}
+        role="slider"
+        aria-label={label}
+        aria-valuemin={min}
+        aria-valuemax={max}
+        aria-valuenow={Math.round(value)}
+        tabIndex={0}
+        onKeyDown={onKeyDown}
+        onMouseDown={onMouseDown}
+        onWheel={onWheel}
+        className="w-28 h-28 rounded-full bg-[#2b2b2b] shadow-inner border border-black/30 relative grid place-items-center cursor-grab active:cursor-grabbing"
+      >
+        {/* Dial */}
+        <svg width="84" height="84" viewBox="0 0 84 84" className="drop-shadow">
+          <defs>
+            <linearGradient id="g" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="#3d3d3d" />
+              <stop offset="100%" stopColor="#1f1f1f" />
+            </linearGradient>
+          </defs>
+          <circle cx="42" cy="42" r="36" fill="url(#g)" stroke="#111" strokeWidth="2" />
+          {/* Ticks */}
+          {[...Array(11)].map((_, i) => {
+            const a = (-135 + (270 * i) / 10) * (Math.PI / 180);
+            const x1 = 42 + Math.cos(a) * 28;
+            const y1 = 42 + Math.sin(a) * 28;
+            const x2 = 42 + Math.cos(a) * 34;
+            const y2 = 42 + Math.sin(a) * 34;
+            return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#666" strokeWidth="2" />;
+          })}
+          {/* Needle */}
+          <g transform={`rotate(${angle} 42 42)`}>
+            <line x1="42" y1="42" x2="42" y2="14" stroke="#f59e0b" strokeWidth="4" strokeLinecap="round" />
+            <circle cx="42" cy="42" r="5" fill="#0f0f0f" stroke="#f59e0b" />
+          </g>
+        </svg>
+        <div className="absolute bottom-1 text-xs text-gray-300">{Math.round(value)}</div>
+      </div>
+      <div className="text-sm font-semibold tracking-wide">{label}</div>
+      {caption && <div className="text-xs text-gray-400">{caption}</div>}
+    </div>
+  );
+}
 
 export default function STYPlayer() {
   const [beats, setBeats] = useState([]);
@@ -18,6 +134,11 @@ export default function STYPlayer() {
   const [mainBlinking, setMainBlinking] = useState(null);
   const [playColor, setPlayColor] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // NEW: Master volume (0..1 -> UI shows 0..100) & Tempo (BPM)
+  const [volume, setVolume] = useState(80); // percent
+  const [tempo, setTempo] = useState(120);
+  const baseTempoRef = useRef(120); // BPM used to compute playbackRate
 
   // deux audio elements : mainAudio pour loop, oneShotAudio pour Fill/Intro/Ending
   const mainAudioRef = useRef(null);
@@ -41,10 +162,23 @@ export default function STYPlayer() {
 
   // Utility : construit l'URL dans Supabase (format exact demandé)
   const getSupabaseWavUrl = (beatId, sectionName) => {
-    // sectionName par ex "Main A", "Intro B", "Fill In AA", "Ending B"
     const filename = `${beatId}_${sectionName.replace(/ /g, '_')}.wav`;
     return `https://swtbkiudmfvnywcgpzfe.supabase.co/storage/v1/object/public/midiAndWav/${beatId}/${filename}`;
   };
+
+  // Playback side‑effects: apply volume & tempo
+  useEffect(() => {
+    const v = Math.max(0, Math.min(1, volume / 100));
+    if (mainAudioRef.current) mainAudioRef.current.volume = v;
+    if (oneShotAudioRef.current) oneShotAudioRef.current.volume = v;
+  }, [volume]);
+
+  useEffect(() => {
+    const base = baseTempoRef.current || 120;
+    const rate = Math.max(0.25, Math.min(4, tempo / base));
+    if (mainAudioRef.current) mainAudioRef.current.playbackRate = rate;
+    if (oneShotAudioRef.current) oneShotAudioRef.current.playbackRate = rate;
+  }, [tempo]);
 
   // indicateur clignotant lorsque lecture active
   useEffect(() => {
@@ -97,21 +231,14 @@ export default function STYPlayer() {
     };
   }, []);
 
-  // --- SELECT BEAT (ne lance PAS la conversion, juste récupère les sections via /prepare-all) ---
+  // --- SELECT BEAT --- (reset + récupérer sections via /prepare-all)
   const handleSelectBeat = async (beat) => {
     if (isLoading) return;
     setIsLoading(true);
     setSelectedBeat(beat);
 
     // reset controls & audio
-    setControls({
-      acmp: false,
-      autofill: false,
-      intro: '',
-      main: 'A',
-      ending: '',
-      play: false,
-    });
+    setControls({ acmp: false, autofill: false, intro: '', main: 'A', ending: '', play: false });
     setMainBlinking(null);
     setPlayColor(null);
     clearTimeout(playTimerRef.current);
@@ -131,9 +258,13 @@ export default function STYPlayer() {
 
     setSectionsAvailability({});
 
+    // NEW: set base tempo/tempo from beat if available
+    const newBase = beat?.tempo || 120;
+    baseTempoRef.current = newBase;
+    setTempo(newBase);
+
     try {
       const token = localStorage.getItem('token');
-      // prepare-all renvoie uniquement disponibilité des sections (map)
       const prepareAllResp = await axios.post(
         '/api/player/prepare-all',
         { beatId: beat.id },
@@ -141,7 +272,6 @@ export default function STYPlayer() {
       );
 
       if (prepareAllResp.data.sections) {
-        // attend un objet { "Main A":1, "Intro B":1, ... } — c'est ton format actuel
         setSectionsAvailability(prepareAllResp.data.sections);
         console.log('Sections détectées:', prepareAllResp.data.sections);
       } else {
@@ -157,8 +287,7 @@ export default function STYPlayer() {
     }
   };
 
-  // --- Play a specific section (used by togglePlay and control clicks) ---
-  // sectionName example: "Main A", "Intro B", "Ending C", "Fill In AA"
+  // --- Play a specific section ---
   const playSection = async (sectionName) => {
     if (!selectedBeat) return;
     if (!sectionsAvailability || sectionsAvailability[sectionName] !== 1) {
@@ -169,15 +298,13 @@ export default function STYPlayer() {
     const beatId = selectedBeat.id;
     const url = getSupabaseWavUrl(beatId, sectionName);
 
-    // If it's a Main -> put into mainAudio (loop)
+    // If it's a Main -> loop on mainAudio
     if (/^Main\s[ABCD]$/i.test(sectionName)) {
-      // stop oneShot if playing
       if (oneShotAudioRef.current && !oneShotAudioRef.current.paused) {
         oneShotAudioRef.current.pause();
         oneShotAudioRef.current.currentTime = 0;
       }
 
-      // load main audio and loop it
       const mainEl = mainAudioRef.current;
       if (!mainEl) return;
       mainEl.src = url;
@@ -190,7 +317,6 @@ export default function STYPlayer() {
         console.error('Impossible de jouer le main:', err);
         throw err;
       }
-      // update controls state (which main is active)
       const m = sectionName.split(' ')[1];
       setControls((prev) => ({ ...prev, main: m }));
       setMainBlinking(m);
@@ -198,46 +324,34 @@ export default function STYPlayer() {
       return;
     }
 
-    // If it's one-shot (Intro / Ending / Fill In) -> play on oneShotAudio
+    // One‑shot (Intro / Ending / Fill In)
     const oneEl = oneShotAudioRef.current;
     if (!oneEl) return;
 
-    // If a main is currently playing, pause it (we'll resume or switch after one-shot)
     const mainEl = mainAudioRef.current;
     const wasMainPlaying = mainEl && !mainEl.paused && mainEl.currentSrc;
 
     if (wasMainPlaying) {
-      try {
-        // pause main but keep its src so we can restart later
-        mainEl.pause();
-      } catch (e) {
-        console.warn('pause main failed', e);
-      }
+      try { mainEl.pause(); } catch (e) { console.warn('pause main failed', e); }
     }
 
-    // Prepare new main candidate in background? We'll preload the target main before switching when needed.
     oneEl.src = url;
     oneEl.loop = false;
     oneEl.preload = 'auto';
 
-    // play one-shot
     try {
       await oneEl.play();
       setControls((prev) => ({ ...prev, play: true }));
     } catch (err) {
       console.error('Impossible de jouer one-shot:', err);
-      // if main was playing, try to resume it
       if (wasMainPlaying && mainEl) mainEl.play().catch(() => {});
       return;
     }
 
-    // When one-shot ends, decide what to do:
     const onEnded = async () => {
       oneEl.removeEventListener('ended', onEnded);
 
-      // If the one-shot was an Intro or Ending -> resume the previously active main (or default main)
       if (/^Intro\s[ABCD]$/i.test(sectionName) || /^Ending\s[ABCD]$/i.test(sectionName)) {
-        // resume the main currently specified in controls (or default A)
         const mainLetter = controls.main || 'A';
         const mainUrl = getSupabaseWavUrl(beatId, `Main ${mainLetter}`);
         mainEl.src = mainUrl;
@@ -254,13 +368,10 @@ export default function STYPlayer() {
         return;
       }
 
-      // If the one-shot was a Fill In XX -> switch to the corresponding Main
-      const fillMatch = sectionName.match(/^Fill In\s([A-D])\1$/i); // e.g. Fill In AA -> group A
+      const fillMatch = sectionName.match(/^Fill In\s([A-D])\1$/i);
       if (fillMatch) {
         const newMain = fillMatch[1].toUpperCase();
         const newMainUrl = getSupabaseWavUrl(beatId, `Main ${newMain}`);
-
-        // preload new main by setting src then play immediately
         mainEl.src = newMainUrl;
         mainEl.loop = true;
         mainEl.preload = 'auto';
@@ -276,7 +387,6 @@ export default function STYPlayer() {
         return;
       }
 
-      // fallback: resume main
       if (mainEl) {
         try {
           await mainEl.play();
@@ -290,14 +400,13 @@ export default function STYPlayer() {
     oneEl.addEventListener('ended', onEnded);
   };
 
-  // toggle play: seul bouton capable de démarrer/arrêter la lecture
+  // toggle play
   const togglePlay = async () => {
     if (!selectedBeat || isLoading) {
       alert('⚠️ Aucun beat sélectionné ou chargement en cours.');
       return;
     }
 
-    // STOP
     if (controls.play) {
       if (oneShotAudioRef.current && !oneShotAudioRef.current.paused) {
         oneShotAudioRef.current.pause();
@@ -313,7 +422,6 @@ export default function STYPlayer() {
       return;
     }
 
-    // START: déterminer quelle section est active (intro > main > ending)
     let sectionToPlay = null;
     if (controls.intro) sectionToPlay = `Intro ${controls.intro}`;
     else if (controls.main) sectionToPlay = `Main ${controls.main}`;
@@ -324,16 +432,10 @@ export default function STYPlayer() {
       return;
     }
     if (!sectionsAvailability[sectionToPlay]) {
-      // si la section active n'existe pas, cherche un main disponible par défaut
       const fallback = Object.keys(sectionsAvailability).find((k) => /^Main\s[ABCD]$/i.test(k) && sectionsAvailability[k] === 1);
-      if (fallback) sectionToPlay = fallback;
-      else {
-        alert('Aucune section disponible à jouer.');
-        return;
-      }
+      if (fallback) sectionToPlay = fallback; else { alert('Aucune section disponible à jouer.'); return; }
     }
 
-    // Lance la lecture de la section choisie
     try {
       await playSection(sectionToPlay);
     } catch (err) {
@@ -343,15 +445,10 @@ export default function STYPlayer() {
     }
   };
 
-  // handleControlClick: en mode HORS-LECTURE -> n'active que le voyant (ne joue pas)
-  // en mode LECTURE -> déclenche comportement intelligent (main switch via fill / intro/ending one-shot)
   const handleControlClick = (type, value = null) => {
     if (!type) return;
-
-    // Convert value to uppercase letter(s)
     const letter = value ? String(value).toUpperCase() : '';
 
-    // If play is false => only update active selection (no playback)
     if (!controls.play) {
       if (type === 'main') {
         setControls((prev) => ({ ...prev, main: letter }));
@@ -359,41 +456,22 @@ export default function STYPlayer() {
         setTimeout(() => setMainBlinking(null), 1200);
         return;
       }
-      if (type === 'intro') {
-        setControls((prev) => ({ ...prev, intro: letter, ending: '' }));
-        return;
-      }
-      if (type === 'ending') {
-        setControls((prev) => ({ ...prev, ending: letter, intro: '' }));
-        return;
-      }
-      if (type === 'acmp' || type === 'autofill') {
-        setControls((prev) => ({ ...prev, [type]: !prev[type] }));
-        return;
-      }
-      if (type === 'play') {
-        togglePlay();
-        return;
-      }
+      if (type === 'intro') { setControls((prev) => ({ ...prev, intro: letter, ending: '' })); return; }
+      if (type === 'ending') { setControls((prev) => ({ ...prev, ending: letter, intro: '' })); return; }
+      if (type === 'acmp' || type === 'autofill') { setControls((prev) => ({ ...prev, [type]: !prev[type] })); return; }
+      if (type === 'play') { togglePlay(); return; }
       return;
     }
 
-    // If playing => interactive behavior
     if (type === 'main') {
       const targetMain = letter;
-      // If same main clicked -> do nothing
       if (controls.main === targetMain) return;
-
-      // schedule: play Fill In XX (if exists) otherwise directly switch to Main target
-      const fillName = `Fill In ${targetMain}${targetMain}`; // Fill In AA, BB...
+      const fillName = `Fill In ${targetMain}${targetMain}`;
       if (sectionsAvailability[fillName] === 1) {
-        // play fill, then in its 'ended' handler we'll switch to Main target (logic in playSection)
         playSection(fillName);
       } else {
-        // if no fill available, directly switch to new main
         playSection(`Main ${targetMain}`);
       }
-      // update control selected main immediately (UI)
       setControls((prev) => ({ ...prev, main: targetMain }));
       setMainBlinking(targetMain);
       setTimeout(() => setMainBlinking(null), 1500);
@@ -403,25 +481,13 @@ export default function STYPlayer() {
     if (type === 'intro' || type === 'ending') {
       const sectionName = `${type.charAt(0).toUpperCase() + type.slice(1)} ${letter}`;
       if (sectionsAvailability[sectionName] !== 1) return;
-      // play the one-shot intro/ending and then resume current main (handled by playSection)
       playSection(sectionName);
-      // update controls selection display
-      setControls((prev) => {
-        if (type === 'intro') return { ...prev, intro: letter, ending: '' };
-        return { ...prev, ending: letter, intro: '' };
-      });
+      setControls((prev) => (type === 'intro' ? { ...prev, intro: letter, ending: '' } : { ...prev, ending: letter, intro: '' }));
       return;
     }
 
-    if (type === 'acmp' || type === 'autofill') {
-      setControls((prev) => ({ ...prev, [type]: !prev[type] }));
-      return;
-    }
-
-    if (type === 'play') {
-      togglePlay();
-      return;
-    }
+    if (type === 'acmp' || type === 'autofill') { setControls((prev) => ({ ...prev, [type]: !prev[type] })); return; }
+    if (type === 'play') { togglePlay(); return; }
   };
 
   // pagination helpers
@@ -476,7 +542,7 @@ export default function STYPlayer() {
         <button
           className="text-white bg-[#333] w-16 h-[60px] rounded-md font-bold"
           style={{ fontSize: type === 'main' ? '1.2rem' : '0.65rem' }}
-          disabled={isLoading && type === 'play' || disabled}
+          disabled={(isLoading && type === 'play') || disabled}
         >
           {label}
         </button>
@@ -491,17 +557,55 @@ export default function STYPlayer() {
       <audio ref={oneShotAudioRef} hidden />
       <h1 className="text-3xl font-bold text-center mb-4">🎧 PSR MANAGER STYLE</h1>
 
-      <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <div className="bg-[#2a2a2a] p-4 rounded-xl shadow-inner">
-          {leftColumn.length === 0 ? <p className="text-gray-400 text-center">Aucun beat disponible</p> : leftColumn.map(renderBeatCard)}
+      {/*
+        ─────────────────────────────────────────────────────────────
+        RÉPÉTEUR (Écran des styles) avec KNOBS de part et d'autre
+        - Knob VOLUME à gauche
+        - Grille des styles au centre
+        - Knob TEMPO à droite
+        Sur petits écrans, les knobs passent au dessus/dessous.
+        ─────────────────────────────────────────────────────────────
+      */}
+      <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-stretch gap-4 mb-6">
+        {/* LEFT: VOLUME knob */}
+        <div className="md:w-[180px] w-full bg-[#2a2a2a] rounded-xl p-4 grid place-items-center">
+          <Knob
+            label="VOLUME"
+            min={0}
+            max={100}
+            step={1}
+            value={volume}
+            caption={`${Math.round(volume)}%`}
+            onChange={setVolume}
+          />
         </div>
-        <div className="bg-[#2a2a2a] p-4 rounded-xl shadow-inner">
-          {rightColumn.length === 0 ? <p className="text-gray-400 text-center">Rien à afficher</p> : rightColumn.map(renderBeatCard)}
+
+        {/* CENTER: Répéteur / Liste des beats en 2 colonnes */}
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-[#2a2a2a] p-4 rounded-xl shadow-inner">
+            {leftColumn.length === 0 ? <p className="text-gray-400 text-center">Aucun beat disponible</p> : leftColumn.map(renderBeatCard)}
+          </div>
+          <div className="bg-[#2a2a2a] p-4 rounded-xl shadow-inner">
+            {rightColumn.length === 0 ? <p className="text-gray-400 text-center">Rien à afficher</p> : rightColumn.map(renderBeatCard)}
+          </div>
+        </div>
+
+        {/* RIGHT: TEMPO knob */}
+        <div className="md:w-[180px] w-full bg-[#2a2a2a] rounded-xl p-4 grid place-items-center">
+          <Knob
+            label="TEMPO"
+            min={40}
+            max={240}
+            step={1}
+            value={tempo}
+            caption={`${Math.round(tempo)} BPM`}
+            onChange={setTempo}
+          />
         </div>
       </div>
 
       {selectedBeat && (
-        <div className="bg-[#2a2a2a] p-4 rounded-xl text-center space-y-3 max-w-9xl mx-auto">
+        <div className="bg-[#2a2a2a] p-4 rounded-xl text-center space-y-3 max-w-6xl mx-auto">
           <div className="flex flex-nowrap overflow-x-auto justify-center gap-2 mt-6 bg-[#1c1c1c] p-3 rounded-lg">
             {renderButton('acmp', 'ACMP', controls.acmp, () => handleControlClick('acmp'))}
             {renderButton('autofill', 'AUTO-FILL', controls.autofill, () => handleControlClick('autofill'))}
@@ -540,13 +644,8 @@ export default function STYPlayer() {
       )}
 
       <style>{`
-        .glow {
-          box-shadow: 0 0 8px 3px currentColor;
-        }
-        @keyframes orangeBlueBlink {
-          0%, 100% { background-color: orange; }
-          50% { background-color: blue; }
-        }
+        .glow { box-shadow: 0 0 8px 3px currentColor; }
+        @keyframes orangeBlueBlink { 0%, 100% { background-color: orange; } 50% { background-color: blue; } }
         .animate-orange-blue-blink { animation: orangeBlueBlink 1.5s infinite; }
         .flex-nowrap { white-space: nowrap; }
         .cursor-not-allowed { cursor: not-allowed !important; }
