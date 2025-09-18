@@ -22,11 +22,6 @@ export default function UploadBeat() {
   const [customTop, setCustomTop] = useState('');
   const [customBottom, setCustomBottom] = useState('');
   const [loading, setLoading] = useState(false);
-
-  // 🔵 Progress UI
-  const [progress, setProgress] = useState(0);            // 0..100
-  const [progressLabel, setProgressLabel] = useState(''); // texte d’étape
-
   const navigate = useNavigate();
 
   const handleFileUpload = (e) => {
@@ -34,147 +29,90 @@ export default function UploadBeat() {
     setStep(2);
   };
 
-  // Helpers progression
-  const clamp = (v) => Math.max(0, Math.min(100, Math.round(v)));
-
-  // Map simple de pourcentages par étape
-  // Upload .sty : 0 → 55% (réel via onUploadProgress)
-  // Préparation serveur : 55% → 70% (palier quand terminé)
-  // Uploads Supabase : 70% → 100% (par fichier terminé)
-  const UI_STEPS = {
-    UPLOAD_START: 0,
-    UPLOAD_END: 55,
-    PREP_END: 70,
-    SUPABASE_END: 100,
-  };
-
   const handleSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    if (!file || !title) {
-      alert("Fichier et titre requis !");
-      return;
-    }
+  if (!file || !title) {
+    alert("Fichier et titre requis !");
+    return;
+  }
 
-    const formData = new FormData();
-    formData.append('beat', file);
-    formData.append('title', title);
-    formData.append('tempo', tempo);
-    formData.append('description', description);
+  const formData = new FormData();
+  formData.append('beat', file);
+  formData.append('title', title);
+  formData.append('tempo', tempo);
+  formData.append('description', description);
 
-    const signature = customSignature ? `${customTop}/${customBottom}` : timeSignature;
-    formData.append('signature', signature);
+  const signature = customSignature ? `${customTop}/${customBottom}` : timeSignature;
+  formData.append('signature', signature);
 
-    setLoading(true);
-    setProgress(0);
-    setProgressLabel('Préparation de l’envoi du fichier…');
+  setLoading(true);
 
-    try {
-      const token = localStorage.getItem('token');
+  try {
+    const token = localStorage.getItem('token');
 
-      // 1️⃣ Upload du beat (progress réel)
-      setProgressLabel('Upload du fichier .sty…');
-      const uploadRes = await axios.post('/api/beats/upload', formData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data',
-        },
-        onUploadProgress: (evt) => {
-          if (!evt.total) return;
-          const ratio = evt.loaded / evt.total;
-          const p = UI_STEPS.UPLOAD_START + ratio * (UI_STEPS.UPLOAD_END - UI_STEPS.UPLOAD_START);
-          setProgress(clamp(p));
-        },
-      });
+    // 1️⃣ Upload du beat
+    const uploadRes = await axios.post('/api/beats/upload', formData, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'multipart/form-data',
+      },
+    });
 
-      const beatId = uploadRes.data.id;
-      setProgress(UI_STEPS.UPLOAD_END);
-      setProgressLabel('Génération des MID/WAV sur le serveur…');
+    const beatId = uploadRes.data.id;
 
-      // 2️⃣ Génération des mid + wav (pas d’API de progress → palier à la fin)
-      const prepareRes = await axios.post('/api/player/prepare-all-sections', { beatId }, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+    // 2️⃣ Génération des mid + wav
+    const prepareRes = await axios.post('/api/player/prepare-all-sections', { beatId }, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
 
-      const generatedFiles = prepareRes.data.sections || []; // tableau d'objets
-      setProgress(UI_STEPS.PREP_END);
-      setProgressLabel(`Préparation terminée (${generatedFiles.length} éléments). Envoi vers Supabase…`);
+    // ⚠️ utiliser "sections" et non "files"
+    const generatedFiles = prepareRes.data.sections; // tableau d'objets { sectionName, midFilename, url }
 
-      // 3️⃣ Upload sur Supabase (progress par fichier terminé)
-      const total = generatedFiles.length || 1;
-      let done = 0;
+    // 3️⃣ Upload sur Supabase
+    for (const fileObj of generatedFiles) {
+      const fileUrl = fileObj.url;
+      const fileName = fileObj.midFilename;
 
-      for (const fileObj of generatedFiles) {
-        const fileUrl = fileObj.url;         // URL source (fichier généré côté serveur)
-        const fileName = fileObj.midFilename; // nom du fichier côté bucket
+      try {
+        const fileBlob = await fetch(fileUrl).then(res => res.blob());
 
-        try {
-          // Récupère le blob depuis l’URL
-          const fileBlob = await fetch(fileUrl).then(res => res.blob());
+        const { error } = await supabase
+          .storage
+          .from('midiAndWav')
+          .upload(`${beatId}/${fileName}`, fileBlob, {
+            cacheControl: '3600',
+            upsert: true
+          });
 
-          // Upload dans le bucket
-          const { error } = await supabase
-            .storage
-            .from('midiAndWav')
-            .upload(`${beatId}/${fileName}`, fileBlob, {
-              cacheControl: '3600',
-              upsert: true
-            });
-
-          if (error) {
-            console.error(`Erreur upload Supabase pour ${fileName}:`, error);
-          } else {
-            console.log(`✅ Fichier uploadé sur Supabase: ${fileName}`);
-          }
-        } catch (fetchErr) {
-          console.error(`Erreur fetch pour ${fileName}:`, fetchErr);
-        } finally {
-          // Incrément de progression par fichier terminé
-          done += 1;
-          const ratio = done / total;
-          const p = UI_STEPS.PREP_END + ratio * (UI_STEPS.SUPABASE_END - UI_STEPS.PREP_END);
-          setProgress(clamp(p));
-          setProgressLabel(`Envoi Supabase… ${done}/${total}`);
+        if (error) {
+          console.error(`Erreur upload Supabase pour ${fileName}:`, error);
+        } else {
+          console.log(`✅ Fichier uploadé sur Supabase: ${fileName}`);
         }
+      } catch (fetchErr) {
+        console.error(`Erreur fetch pour ${fileName}:`, fetchErr);
       }
-
-      setProgress(100);
-      setProgressLabel('Terminé ✅');
-
-      setLoading(false);
-      alert('Beat ajouté et fichiers envoyés sur Supabase ✅');
-      navigate('/dashboard');
-    } catch (err) {
-      console.error(err);
-      setLoading(false);
-      setProgress(0);
-      setProgressLabel('');
-      alert(err.response?.data?.error || 'Erreur lors de l’envoi ou de la préparation');
     }
-  };
+
+    setLoading(false);
+    alert('Beat ajouté et fichiers envoyés sur Supabase ✅');
+    navigate('/dashboard');
+  } catch (err) {
+    console.error(err);
+    setLoading(false);
+    alert(err.response?.data?.error || 'Erreur lors de l’envoi ou de la préparation');
+  }
+};
+
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8 relative">
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-70 z-50">
-          <div className="w-full max-w-md mx-auto bg-gray-800 p-6 rounded-xl shadow-xl border border-gray-700">
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="animate-spin rounded-full h-6 w-6 border-t-4 border-blue-500"></div>
-              <p className="text-lg font-semibold">Traitement en cours…</p>
-            </div>
-
-            {/* Barre de progression */}
-            <div className="w-full bg-gray-700 rounded overflow-hidden h-3">
-              <div
-                className="bg-blue-500 h-3 transition-all duration-200"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-
-            <div className="mt-3 flex items-center justify-between">
-              <span className="text-sm text-gray-300">{progressLabel || '…'}</span>
-              <span className="text-sm font-mono">{clamp(progress)}%</span>
-            </div>
+          <div className="flex flex-col items-center">
+            <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-blue-500 mb-4"></div>
+            <p className="text-lg">Traitement en cours, veuillez patienter...</p>
           </div>
         </div>
       )}
